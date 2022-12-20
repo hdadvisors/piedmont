@@ -1,0 +1,97 @@
+---
+title: "Piedmont Housing Alliance Data Analysis"
+format:
+  html:
+    toc: true
+    toc-location: left
+    number-sections: true
+    theme: flatly
+execute: 
+  echo: false
+  warning: false
+  freeze: auto
+---
+
+```{r}
+#| label: setup
+
+library(tidyverse)
+library(hdatools)
+library(scales)
+library(ggiraph)
+library(ggtext)
+
+```
+
+
+::: {.callout-warning}
+## Please note
+This document is still under construction. It was  last updated `r Sys.Date()`.
+:::
+
+# About
+
+Piedmont Housing Alliance (PHA) is a 501(c)3 nonprofit organization that provides housing services to clients in the Charlottesville, Virginia region. In 2022, PHA received a Tier III Capacity Building Program Enhancement Grant from Virginia Housing to evaluate and improve their Down Payment Loan (DPL) program.
+
+::: {.callout-note}
+## How the DPL program works
+
+PHA's Down Payment Loan (DPL) program . . .
+:::
+
+PHA seeks a deeper understanding of the DPL program's outcomes and impacts, particularly in terms of racial equity and wealth-building. This document was prepared by HDAdvisors to develop methods for evaluating the program using internal and external data.
+
+## Goals
+
+The primary goal of this analysis is a preliminary evaluation of the DPL program's current ability to close the racial homeownership gap in the Charlottesville area.
+
+The secondary goal is to provide PHA staff with reproducible methods for collecting, preparing, and analyzing the data necessary for this evaluation. 
+
+## Guiding questions
+
+The following questions help determine (1) what kind of data is needed, and (2) how that data should be analyzed.
+
+* How do PHA's DPL clients vary by race, ethnicity, and income compared to the region as a whole?
+* Do the levels of assistance vary significantly by race, ethnicity, and income?
+* Are there noticeable migration patterns for clients purchasing their first home?
+* How do the homes purchased by clients compare to similar homes in that neighborhood?
+* How much home equity have past clients gained? How similar are these gains across race, ethnicity, and neighborhoods?
+
+# Data assembly
+
+This section outlines each metric necessary for analysis, along with methods for collecting and cleaning the appropriate data.
+
+## Program and client data
+
+PHA provided data on DPL clients from FY 2018 through FY 2023.
+
+This data includes attributes about each client household, including:
+
+* Total annual income
+* Area median income (AMI)
+* Number of persons
+* Street address (at time of application)
+
+It also includes DPL-specific program data, including:
+
+* Number of loans provided
+* Total amount of DPL assistance
+* Funding sources used for each loan
+* Source(s) and amount of non-DPL assistance
+
+Information on the homes purchased by clients include:
+
+* Street address
+* Sales price
+* Appraised value
+* Closing costs and other prepaids
+
+Information about clients' mortgages are also provided:
+
+* Lending institution
+* Mortgage product
+* Mortgage amount
+* Interest rate
+
+
+
