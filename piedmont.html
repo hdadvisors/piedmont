@@ -6,6 +6,7 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
+<meta name="author" content="Jonathan Knopf (jonathan@hdadvisors.net)">
 
 <title>Piedmont Housing Alliance Data Analysis</title>
 <style>
@@ -20,6 +21,69 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1.6em;
   vertical-align: middle;
 }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+    color: #aaaaaa;
+  }
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+code span.at { color: #7d9029; } /* Attribute */
+code span.bn { color: #40a070; } /* BaseN */
+code span.bu { color: #008000; } /* BuiltIn */
+code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+code span.ch { color: #4070a0; } /* Char */
+code span.cn { color: #880000; } /* Constant */
+code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+code span.dt { color: #902000; } /* DataType */
+code span.dv { color: #40a070; } /* DecVal */
+code span.er { color: #ff0000; font-weight: bold; } /* Error */
+code span.ex { } /* Extension */
+code span.fl { color: #40a070; } /* Float */
+code span.fu { color: #06287e; } /* Function */
+code span.im { color: #008000; font-weight: bold; } /* Import */
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+code span.op { color: #666666; } /* Operator */
+code span.ot { color: #007020; } /* Other */
+code span.pp { color: #bc7a00; } /* Preprocessor */
+code span.sc { color: #4070a0; } /* SpecialChar */
+code span.ss { color: #bb6688; } /* SpecialString */
+code span.st { color: #4070a0; } /* String */
+code span.va { color: #19177c; } /* Variable */
+code span.vs { color: #4070a0; } /* VerbatimString */
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
 </style>
 
 
@@ -53,7 +117,25 @@ ul.task-list li input[type="checkbox"] {
   <li><a href="#data-assembly" id="toc-data-assembly" class="nav-link" data-scroll-target="#data-assembly"><span class="toc-section-number">2</span>  Data assembly</a>
   <ul class="collapse">
   <li><a href="#program-and-client-data" id="toc-program-and-client-data" class="nav-link" data-scroll-target="#program-and-client-data"><span class="toc-section-number">2.1</span>  Program and client data</a></li>
+  <li><a href="#regional-and-neighborhood-profiles" id="toc-regional-and-neighborhood-profiles" class="nav-link" data-scroll-target="#regional-and-neighborhood-profiles"><span class="toc-section-number">2.2</span>  Regional and neighborhood profiles</a></li>
+  <li><a href="#mortgage-applications-and-activity" id="toc-mortgage-applications-and-activity" class="nav-link" data-scroll-target="#mortgage-applications-and-activity"><span class="toc-section-number">2.3</span>  Mortgage applications and activity</a></li>
+  <li><a href="#home-values" id="toc-home-values" class="nav-link" data-scroll-target="#home-values"><span class="toc-section-number">2.4</span>  Home values</a>
+  <ul class="collapse">
+  <li><a href="#real-estate-assessments" id="toc-real-estate-assessments" class="nav-link" data-scroll-target="#real-estate-assessments"><span class="toc-section-number">2.4.1</span>  Real estate assessments</a></li>
+  <li><a href="#mls-sales" id="toc-mls-sales" class="nav-link" data-scroll-target="#mls-sales"><span class="toc-section-number">2.4.2</span>  MLS sales</a></li>
   </ul></li>
+  <li><a href="#other-data" id="toc-other-data" class="nav-link" data-scroll-target="#other-data"><span class="toc-section-number">2.5</span>  Other data</a></li>
+  </ul></li>
+  <li><a href="#analysis" id="toc-analysis" class="nav-link" data-scroll-target="#analysis"><span class="toc-section-number">3</span>  Analysis</a>
+  <ul class="collapse">
+  <li><a href="#profile-of-clients" id="toc-profile-of-clients" class="nav-link" data-scroll-target="#profile-of-clients"><span class="toc-section-number">3.1</span>  Profile of clients</a></li>
+  <li><a href="#assistance-levels" id="toc-assistance-levels" class="nav-link" data-scroll-target="#assistance-levels"><span class="toc-section-number">3.2</span>  Assistance levels</a></li>
+  <li><a href="#spatial-patterns" id="toc-spatial-patterns" class="nav-link" data-scroll-target="#spatial-patterns"><span class="toc-section-number">3.3</span>  Spatial patterns</a></li>
+  <li><a href="#housing-outcomes" id="toc-housing-outcomes" class="nav-link" data-scroll-target="#housing-outcomes"><span class="toc-section-number">3.4</span>  Housing outcomes</a></li>
+  <li><a href="#home-equity" id="toc-home-equity" class="nav-link" data-scroll-target="#home-equity"><span class="toc-section-number">3.5</span>  Home equity</a></li>
+  </ul></li>
+  <li><a href="#takeaways" id="toc-takeaways" class="nav-link" data-scroll-target="#takeaways"><span class="toc-section-number">4</span>  Takeaways</a></li>
+  <li><a href="#next-steps" id="toc-next-steps" class="nav-link" data-scroll-target="#next-steps"><span class="toc-section-number">5</span>  Next steps</a></li>
   </ul>
 </nav>
 </div>
@@ -70,6 +152,12 @@ ul.task-list li input[type="checkbox"] {
 
 <div class="quarto-title-meta">
 
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>Jonathan Knopf (jonathan@hdadvisors.net) </p>
+          </div>
+  </div>
     
   
     
@@ -79,7 +167,16 @@ ul.task-list li input[type="checkbox"] {
 </header>
 
 <div class="cell">
-
+<details>
+<summary>Setup code</summary>
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(hdatools)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(scales)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggiraph)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggtext)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>today <span class="ot">&lt;-</span> <span class="fu">Sys.Date</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
 </div>
 <div class="callout-warning callout callout-style-default callout-captioned">
 <div class="callout-header d-flex align-content-center">
@@ -91,36 +188,58 @@ Please note
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>This document is still under construction. It was last updated 2022-12-20.</p>
+<p>This document is still under construction. It was last updated December 21, 2022 at 01:00 PM.</p>
 </div>
 </div>
 <section id="about" class="level1" data-number="1">
 <h1 data-number="1"><span class="header-section-number">1</span> About</h1>
-<p>Piedmont Housing Alliance (PHA) is a 501(c)3 nonprofit organization that provides housing services to clients in the Charlottesville, Virginia region. In 2022, PHA received a Tier III Capacity Building Program Enhancement Grant from Virginia Housing to evaluate and improve their Down Payment Loan (DPL) program.</p>
+<p>Piedmont Housing Alliance (PHA) is a 501(c)3 nonprofit organization that provides housing services to clients in the Charlottesville, Virginia region. In 2022, PHA received a Tier III Capacity Building Program Enhancement Grant from Virginia Housing to evaluate and improve their programs aimed at helping first-time homebuyers.</p>
 <div class="callout-note callout callout-style-default callout-captioned">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
 <i class="callout-icon"></i>
 </div>
 <div class="callout-caption-container flex-fill">
-How the DPL program works
+How PHA helps first-time homebuyers
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>PHA’s Down Payment Loan (DPL) program . . .</p>
+<p>PHA offers two programs to help buyers earning less than 80% of Area Median Income (AMI) purchase their first home.</p>
+<ol type="1">
+<li><p>The <strong>Down Payment Loan</strong> (DPL) program combines funding from several different sources to provide buyers with additional assistance to increase their total down payment and cover closing costs. This allows buyer to more easily afford homes at prices they would otherwise be unable to afford.</p></li>
+<li><p>PHA administers the <strong>Sponsoring Partnerships &amp; Revitalizing Communities</strong> (SPARC) program, which lowers a buyer’s mortgage interest rate by 1.00%. SPARC funds are allocated by Virginia Housing and help buyers save thousands of dollars over the life of their loan.</p></li>
+</ol>
 </div>
 </div>
-<p>PHA seeks a deeper understanding of the DPL program’s outcomes and impacts, particularly in terms of racial equity and wealth-building. This document was prepared by HDAdvisors to develop methods for evaluating the program using internal and external data.</p>
+<p>PHA seeks a deeper understanding of these two programs’ outcomes and impacts, particularly in terms of racial equity and wealth-building. This document was prepared by HDAdvisors to develop methods for evaluating the program using internal and external data.</p>
 <section id="goals" class="level2" data-number="1.1">
 <h2 data-number="1.1" class="anchored" data-anchor-id="goals"><span class="header-section-number">1.1</span> Goals</h2>
-<p>The primary goal of this analysis is a preliminary evaluation of the DPL program’s current ability to close the racial homeownership gap in the Charlottesville area.</p>
-<p>The secondary goal is to provide PHA staff with reproducible methods for collecting, preparing, and analyzing the data necessary for this evaluation.</p>
+<p>The primary goal of this analysis is a preliminary evaluation of the DPL and SPARC programs’ current abilities to support buyers who are more likely to be at a systemic disadvantage because of unjust lending practices and other discriminatory efforts.</p>
+<p>The secondary goal is to provide PHA staff with reproducible methods for collecting, preparing, and analyzing the data necessary for this evaluation. This will allow PHA to regularly track and monitor these programs without outside assistance.</p>
+<div class="callout-note callout callout-style-default callout-captioned">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-caption-container flex-fill">
+Why this matters
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>This analysis will be helpful for PHA in three important ways:</p>
+<ol type="1">
+<li>To proactively assess whether the program fulfills all applicable fair housing requirements,</li>
+<li>To provide staff with a thorough understanding of program outcomes for stronger grant applications, and</li>
+<li>To further PHA’s existing Diversity, Equity, and Inclusion (DEI) efforts.</li>
+</ol>
+</div>
+</div>
 </section>
 <section id="guiding-questions" class="level2" data-number="1.2">
 <h2 data-number="1.2" class="anchored" data-anchor-id="guiding-questions"><span class="header-section-number">1.2</span> Guiding questions</h2>
 <p>The following questions help determine (1) what kind of data is needed, and (2) how that data should be analyzed.</p>
 <ul>
-<li>How do PHA’s DPL clients vary by race, ethnicity, and income compared to the region as a whole?</li>
+<li>How do PHA’s clients vary by race, ethnicity, and income compared to the region as a whole?</li>
 <li>Do the levels of assistance vary significantly by race, ethnicity, and income?</li>
 <li>Are there noticeable migration patterns for clients purchasing their first home?</li>
 <li>How do the homes purchased by clients compare to similar homes in that neighborhood?</li>
@@ -133,11 +252,12 @@ How the DPL program works
 <p>This section outlines each metric necessary for analysis, along with methods for collecting and cleaning the appropriate data.</p>
 <section id="program-and-client-data" class="level2" data-number="2.1">
 <h2 data-number="2.1" class="anchored" data-anchor-id="program-and-client-data"><span class="header-section-number">2.1</span> Program and client data</h2>
-<p>PHA provided data on DPL clients from FY 2018 through FY 2023.</p>
+<p>PHA provided data on DPL and SPARC clients from FY 2018 through FY 2023.</p>
 <p>This data includes attributes about each client household, including:</p>
 <ul>
 <li>Total annual income</li>
 <li>Area median income (AMI)</li>
+<li>Race and ethnicity (optional)</li>
 <li>Number of persons</li>
 <li>Street address (at time of application)</li>
 </ul>
@@ -161,8 +281,217 @@ How the DPL program works
 <li>Mortgage product</li>
 <li>Mortgage amount</li>
 <li>Interest rate</li>
+<li>Original interest rate (SPARC only)</li>
+<li>Closing date</li>
+</ul>
+<p>The full dataset includes multiple other fields that are not necessary or relevant to this analysis.</p>
+<p><code>Add steps on cleaning/preparing this data</code></p>
+</section>
+<section id="regional-and-neighborhood-profiles" class="level2" data-number="2.2">
+<h2 data-number="2.2" class="anchored" data-anchor-id="regional-and-neighborhood-profiles"><span class="header-section-number">2.2</span> Regional and neighborhood profiles</h2>
+<div class="callout-tip callout callout-style-default callout-captioned">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-caption-container flex-fill">
+Why this is needed
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Demographic and socioeconomic data will help establish the baseline characteristics of population groups that PHA seeks to compare with its clients. For example, how closely does the client pool match the average racial and ethnic makeup across the region?</p>
+</div>
+</div>
+<p>Two datasets will be used to create summary profiles of the geographies PHA will use as reference for its clients’ characteristics. Both are from the U.S. Census Bureau:</p>
+<ul>
+<li>2020 Decennial Census</li>
+<li>American Community Survey (5-year estimates)</li>
+</ul>
+<div class="callout-note callout callout-style-default callout-captioned">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-caption-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>As of December 2022, the latest ACS data available are the 2017-2021 5-year estimates.</p>
+</div>
+</div>
+<p>The fields to collect from this data include:</p>
+<ul>
+<li>Race and ethnicity of population</li>
+<li>Average household incomes</li>
+<li>Homeownership rates</li>
+</ul>
+<p><code>Add steps on cleaning/preparing this data</code></p>
+</section>
+<section id="mortgage-applications-and-activity" class="level2" data-number="2.3">
+<h2 data-number="2.3" class="anchored" data-anchor-id="mortgage-applications-and-activity"><span class="header-section-number">2.3</span> Mortgage applications and activity</h2>
+<div class="callout-tip callout callout-style-default callout-captioned">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-caption-container flex-fill">
+Why this is needed
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Along with comparing client characteristics with the region or a neighborhood as a whole, we can compare their mortgages to overall lending activity in the community over time. This will allow PHA to benchmark its buyer assistance efforts to home loan trends across the region.</p>
+</div>
+</div>
+<p>This information is available from the Home Mortgage Disclosure Act (HMDA) data from the Consumer Financial Protection Bureau. HMDA data include loan-level information on buyer demographics, loan attributes, and property characteristics. Entries for buyers whose applications were eventually withdrawn or denied are also included.</p>
+<div class="callout-note callout callout-style-default callout-captioned">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-caption-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>As of December 2022, the latest HMDA data available is for 2021.</p>
+</div>
+</div>
+<p>The fields to collect from this data include:</p>
+<ul>
+<li>Buyer race and ethnicity</li>
+<li>Buyer county and census tract</li>
+<li>Loan type (conventional, FHA, VA, or USDA)</li>
+<li>Action taken (loan originated, application denied or withdrawn)</li>
+<li>Loan amount</li>
+<li>Interest rate</li>
+<li>Property value</li>
+<li>Occupancy type (principal residence only)</li>
+<li>Buyer gross annual income</li>
+<li>Debt-to-income ratio</li>
+</ul>
+<p><code>Add steps on cleaning/preparing this data</code></p>
+</section>
+<section id="home-values" class="level2" data-number="2.4">
+<h2 data-number="2.4" class="anchored" data-anchor-id="home-values"><span class="header-section-number">2.4</span> Home values</h2>
+<div class="callout-tip callout callout-style-default callout-captioned">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-caption-container flex-fill">
+Why this is needed
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Detailed data on home sales and values are necessary to make estimates about the total home equity gained (or lost) by PHA buyers and other homeowners in the community. This property-level data will help PHA assess its programs’ abilities to support wealth-building among clients.</p>
+</div>
+</div>
+<section id="real-estate-assessments" class="level3" data-number="2.4.1">
+<h3 data-number="2.4.1" class="anchored" data-anchor-id="real-estate-assessments"><span class="header-section-number">2.4.1</span> Real estate assessments</h3>
+<p>Localities in PHA’s service area regularly assess property values to calculate the total real estate taxes to be paid by each property owner. Properties are reassessed to better match taxable values with potential market values, which can change significantly over time.</p>
+<p>Despite these updates, local assessments can often lag behind current market trends, so they are not the most accurate indicator of the actual market value of a home if it were sold. Still, assessment data are consistent and publicly available for all parcels in a locality. This creates a useful longitudinal dataset.</p>
+<p>For this preliminary analysis, only assessment data from the City of Charlottesville will be used.</p>
+<p>The fields to collect from this data include:</p>
+<ul>
+<li>Parcel number</li>
+<li>Street number and name</li>
+<li>Bedrooms and bathrooms</li>
+<li>Finished square footage</li>
+<li>Total assessed value</li>
+</ul>
+<p><code>Add steps on cleaning/preparing this data</code></p>
+</section>
+<section id="mls-sales" class="level3" data-number="2.4.2">
+<h3 data-number="2.4.2" class="anchored" data-anchor-id="mls-sales"><span class="header-section-number">2.4.2</span> MLS sales</h3>
+<p>Actual recorded home sales are the most accurate way to determine residential property values. For arms-length transactions, sales prices reflect the actual market value of each home. These records are therefore the ideal source to best determine home equity changes among homeowners.</p>
+<p>PHA is able to provide data exported from the multiple listing service (MLS) operated by the Charlottesville Area Association of REALTORS® (CAAR). The MLS platform includes all real estate listings from agents in the region and is dynamically updated as listings are added, updated, or closed.</p>
+<p>For this preliminary analysis, PHA has provided data on all sold single-family homes in the City of Charlottesville from September 2022 through November 22, 2022.</p>
+<p>Fields included in this exports include:</p>
+<ul>
+<li>Property address</li>
+<li>Days on market</li>
+<li>List price</li>
+<li>Closed date</li>
+<li>Bedrooms and bathrooms</li>
+<li>Finished square footage</li>
+</ul>
+<p><code>Add steps on cleaning/preparing this data</code></p>
+</section>
+</section>
+<section id="other-data" class="level2" data-number="2.5">
+<h2 data-number="2.5" class="anchored" data-anchor-id="other-data"><span class="header-section-number">2.5</span> Other data</h2>
+<p><code>May or may not eventually be used</code></p>
+<ul>
+<li>Neighborhood boundaries from City of Charlottesville (<a href="https://opendata.charlottesville.org/datasets/charlottesville::planning-neighborhood-area/about">link</a>)</li>
+<li>Real estate sales (<a href="https://opendata.charlottesville.org/maps/real-estate-sales">link</a>)</li>
 </ul>
 </section>
+</section>
+<section id="analysis" class="level1" data-number="3">
+<h1 data-number="3"><span class="header-section-number">3</span> Analysis</h1>
+<section id="profile-of-clients" class="level2" data-number="3.1">
+<h2 data-number="3.1" class="anchored" data-anchor-id="profile-of-clients"><span class="header-section-number">3.1</span> Profile of clients</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Total number and total by month/year</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co"># DPL-only, SPARC-only, and "double-dipping" clients</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Race and ethnicity</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Income</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Demographic/socioeconomic comparison to region/neighborhood</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="assistance-levels" class="level2" data-number="3.2">
+<h2 data-number="3.2" class="anchored" data-anchor-id="assistance-levels"><span class="header-section-number">3.2</span> Assistance levels</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Number and distribution of DPL sources</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Amount of non-DPL assistance</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Breakdown by race, ethnicity, and income</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="spatial-patterns" class="level2" data-number="3.3">
+<h2 data-number="3.3" class="anchored" data-anchor-id="spatial-patterns"><span class="header-section-number">3.3</span> Spatial patterns</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Locations of prior client home</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Locations of home purchased by client</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="housing-outcomes" class="level2" data-number="3.4">
+<h2 data-number="3.4" class="anchored" data-anchor-id="housing-outcomes"><span class="header-section-number">3.4</span> Housing outcomes</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Client home attributes and price compared to neighborhood</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Client loan products compared to region (and neighborhood, if possible)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="home-equity" class="level2" data-number="3.5">
+<h2 data-number="3.5" class="anchored" data-anchor-id="home-equity"><span class="header-section-number">3.5</span> Home equity</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Two methods to try and test</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Option 1:</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Find average percent change in assessment values from purchase date to current for all comparable homes in neighborhood</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Apply percent change to original sales price for estimated home value</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate remaining mortgage balance using loan info</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="co"># value - balance = equity</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Option 2:</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Same as above but use MLS sales data</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Will have much smaller sample size -- may only be possible at city level</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Determine if any past clients have already sold home -- would provide most accurate estimate</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+</section>
+<section id="takeaways" class="level1" data-number="4">
+<h1 data-number="4"><span class="header-section-number">4</span> Takeaways</h1>
+<p><code>Major (and other noteworthy) findings from analysis</code></p>
+</section>
+<section id="next-steps" class="level1" data-number="5">
+<h1 data-number="5"><span class="header-section-number">5</span> Next steps</h1>
+<p>HDAdvisors will continue to work with PHA on the following next steps:</p>
+<ul>
+<li>Develop consistent data entry/collection procedures to reduce time needed for data cleaning/correction in future analysis.</li>
+<li>Collect and analyze program application data for clients who did not receive assistance from DPL and/or SPARC. Assess, if possible, reasons for denial and compare with loan denial trends in HMDA data.</li>
+</ul>
+<p><code>Plenty more to add here</code></p>
 </section>
 
 </main>

@@ -6,14 +6,18 @@ format:
     toc-location: left
     number-sections: true
     theme: flatly
+    author: "Jonathan Knopf (jonathan@hdadvisors.net)"
 execute: 
-  echo: false
+  echo: true
   warning: false
   freeze: auto
+code-overflow: scroll
 ---
 
 ```{r}
 #| label: setup
+#| code-fold: true
+#| code-summary: "Setup code"
 
 library(tidyverse)
 library(hdatools)
@@ -21,37 +25,52 @@ library(scales)
 library(ggiraph)
 library(ggtext)
 
-```
+today <- Sys.Date()
 
+```
 
 ::: {.callout-warning}
 ## Please note
-This document is still under construction. It was  last updated `r Sys.Date()`.
+This document is still under construction. It was last updated `r format(today, format = "%B %d, %Y")` at `r format(Sys.time(), "%I:%M %p")`.
 :::
 
 # About
 
-Piedmont Housing Alliance (PHA) is a 501(c)3 nonprofit organization that provides housing services to clients in the Charlottesville, Virginia region. In 2022, PHA received a Tier III Capacity Building Program Enhancement Grant from Virginia Housing to evaluate and improve their Down Payment Loan (DPL) program.
+Piedmont Housing Alliance (PHA) is a 501(c)3 nonprofit organization that provides housing services to clients in the Charlottesville, Virginia region. In 2022, PHA received a Tier III Capacity Building Program Enhancement Grant from Virginia Housing to evaluate and improve their programs aimed at helping first-time homebuyers.
 
 ::: {.callout-note}
-## How the DPL program works
+## How PHA helps first-time homebuyers
 
-PHA's Down Payment Loan (DPL) program . . .
+PHA offers two programs to help buyers earning less than 80% of Area Median Income (AMI) purchase their first home.
+
+1. The **Down Payment Loan** (DPL) program combines funding from several different sources to provide buyers with additional assistance to increase their total down payment and cover closing costs. This allows buyer to more easily afford homes at prices they would otherwise be unable to afford.
+
+2. PHA administers the **Sponsoring Partnerships & Revitalizing Communities** (SPARC) program, which lowers a buyer's mortgage interest rate by 1.00%. SPARC funds are allocated by Virginia Housing and help buyers save thousands of dollars over the life of their loan.
 :::
 
-PHA seeks a deeper understanding of the DPL program's outcomes and impacts, particularly in terms of racial equity and wealth-building. This document was prepared by HDAdvisors to develop methods for evaluating the program using internal and external data.
+PHA seeks a deeper understanding of these two programs' outcomes and impacts, particularly in terms of racial equity and wealth-building. This document was prepared by HDAdvisors to develop methods for evaluating the program using internal and external data.
 
 ## Goals
 
-The primary goal of this analysis is a preliminary evaluation of the DPL program's current ability to close the racial homeownership gap in the Charlottesville area.
+The primary goal of this analysis is a preliminary evaluation of the DPL and SPARC programs' current abilities to support buyers who are more likely to be at a systemic disadvantage because of unjust lending practices and other discriminatory efforts.
 
-The secondary goal is to provide PHA staff with reproducible methods for collecting, preparing, and analyzing the data necessary for this evaluation. 
+The secondary goal is to provide PHA staff with reproducible methods for collecting, preparing, and analyzing the data necessary for this evaluation. This will allow PHA to regularly track and monitor these programs without outside assistance.
+
+::: {.callout-note}
+## Why this matters
+
+This analysis will be helpful for PHA in three important ways:
+
+1. To proactively assess whether the program fulfills all applicable fair housing requirements,
+2. To provide staff with a thorough understanding of program outcomes for stronger grant applications, and
+3. To further PHA's existing Diversity, Equity, and Inclusion (DEI) efforts.
+:::
 
 ## Guiding questions
 
 The following questions help determine (1) what kind of data is needed, and (2) how that data should be analyzed.
 
-* How do PHA's DPL clients vary by race, ethnicity, and income compared to the region as a whole?
+* How do PHA's clients vary by race, ethnicity, and income compared to the region as a whole?
 * Do the levels of assistance vary significantly by race, ethnicity, and income?
 * Are there noticeable migration patterns for clients purchasing their first home?
 * How do the homes purchased by clients compare to similar homes in that neighborhood?
@@ -63,12 +82,13 @@ This section outlines each metric necessary for analysis, along with methods for
 
 ## Program and client data
 
-PHA provided data on DPL clients from FY 2018 through FY 2023.
+PHA provided data on DPL and SPARC clients from FY 2018 through FY 2023.
 
 This data includes attributes about each client household, including:
 
 * Total annual income
 * Area median income (AMI)
+* Race and ethnicity (optional)
 * Number of persons
 * Street address (at time of application)
 
@@ -92,6 +112,180 @@ Information about clients' mortgages are also provided:
 * Mortgage product
 * Mortgage amount
 * Interest rate
+* Original interest rate (SPARC only)
+* Closing date
 
+The full dataset includes multiple other fields that are not necessary or relevant to this analysis.
 
+`Add steps on cleaning/preparing this data`
+
+## Regional and neighborhood profiles
+
+::: {.callout-tip}
+### Why this is needed
+
+Demographic and socioeconomic data will help establish the baseline characteristics of population groups that PHA seeks to compare with its clients. For example, how closely does the client pool match the average racial and ethnic makeup across the region?
+:::
+
+Two datasets will be used to create summary profiles of the geographies PHA will use as reference for its clients' characteristics. Both are from the U.S. Census Bureau:
+
+* 2020 Decennial Census
+* American Community Survey (5-year estimates)
+
+::: {.callout-note}
+As of `r format(today, format = "%B %Y")`, the latest ACS data available are the 2017-2021 5-year estimates.
+:::
+
+The fields to collect from this data include:
+
+* Race and ethnicity of population
+* Average household incomes
+* Homeownership rates
+
+`Add steps on cleaning/preparing this data`
+
+## Mortgage applications and activity
+
+::: {.callout-tip}
+### Why this is needed
+
+Along with comparing client characteristics with the region or a neighborhood as a whole, we can compare their mortgages to overall lending activity in the community over time. This will allow PHA to benchmark its buyer assistance efforts to home loan trends across the region.
+:::
+
+This information is available from the Home Mortgage Disclosure Act (HMDA) data from the Consumer Financial Protection Bureau. HMDA data include loan-level information on buyer demographics, loan attributes, and property characteristics. Entries for buyers whose applications were eventually withdrawn or denied are also included.
+
+::: {.callout-note}
+As of `r format(today, format = "%B %Y")`, the latest HMDA data available is for 2021.
+:::
+
+The fields to collect from this data include:
+
+* Buyer race and ethnicity
+* Buyer county and census tract
+* Loan type (conventional, FHA, VA, or USDA)
+* Action taken (loan originated, application denied or withdrawn)
+* Loan amount
+* Interest rate
+* Property value
+* Occupancy type (principal residence only)
+* Buyer gross annual income
+* Debt-to-income ratio
+
+`Add steps on cleaning/preparing this data`
+
+## Home values
+
+::: {.callout-tip}
+### Why this is needed
+
+Detailed data on home sales and values are necessary to make estimates about the total home equity gained (or lost) by PHA buyers and other homeowners in the community. This property-level data will help PHA assess its programs' abilities to support wealth-building among clients.
+:::
+
+### Real estate assessments
+
+Localities in PHA's service area regularly assess property values to calculate the total real estate taxes to be paid by each property owner. Properties are reassessed to better match taxable values with potential market values, which can change significantly over time.
+
+Despite these updates, local assessments can often lag behind current market trends, so they are not the most accurate indicator of the actual market value of a home if it were sold. Still, assessment data are consistent and publicly available for all parcels in a locality. This creates a useful longitudinal dataset.
+
+For this preliminary analysis, only assessment data from the City of Charlottesville will be used.
+
+The fields to collect from this data include:
+
+* Parcel number
+* Street number and name
+* Bedrooms and bathrooms
+* Finished square footage
+* Total assessed value
+
+`Add steps on cleaning/preparing this data`
+
+### MLS sales
+
+Actual recorded home sales are the most accurate way to determine residential property values. For arms-length transactions, sales prices reflect the actual market value of each home. These records are therefore the ideal source to best determine home equity changes among homeowners.
+
+PHA is able to provide data exported from the multiple listing service (MLS) operated by the Charlottesville Area Association of REALTORS® (CAAR). The MLS platform includes all real estate listings from agents in the region and is dynamically updated as listings are added, updated, or closed.
+
+For this preliminary analysis, PHA has provided data on all sold single-family homes in the City of Charlottesville from September 2022 through November 22, 2022.
+
+Fields included in this exports include:
+
+* Property address
+* Days on market
+* List price
+* Closed date
+* Bedrooms and bathrooms
+* Finished square footage
+
+`Add steps on cleaning/preparing this data`
+
+## Other data
+
+`May or may not eventually be used` 
+
+* Neighborhood boundaries from City of Charlottesville ([link](https://opendata.charlottesville.org/datasets/charlottesville::planning-neighborhood-area/about))
+* Real estate sales ([link](https://opendata.charlottesville.org/maps/real-estate-sales))
+
+# Analysis
+
+## Profile of clients
+
+```{r}
+# Total number and total by month/year
+# DPL-only, SPARC-only, and "double-dipping" clients
+# Race and ethnicity
+# Income
+# Demographic/socioeconomic comparison to region/neighborhood
+```
+
+## Assistance levels
+
+```{r}
+# Number and distribution of DPL sources
+# Amount of non-DPL assistance
+# Breakdown by race, ethnicity, and income
+```
+
+## Spatial patterns
+
+```{r}
+# Locations of prior client home
+# Locations of home purchased by client
+```
+
+## Housing outcomes
+
+```{r}
+# Client home attributes and price compared to neighborhood
+# Client loan products compared to region (and neighborhood, if possible)
+```
+
+## Home equity
+
+```{r}
+# Two methods to try and test
+
+# Option 1:
+# Find average percent change in assessment values from purchase date to current for all comparable homes in neighborhood
+# Apply percent change to original sales price for estimated home value
+# Calculate remaining mortgage balance using loan info
+# value - balance = equity
+
+# Option 2:
+# Same as above but use MLS sales data
+# Will have much smaller sample size -- may only be possible at city level
+# Determine if any past clients have already sold home -- would provide most accurate estimate
+```
+
+# Takeaways
+
+`Major (and other noteworthy) findings from analysis`
+
+# Next steps
+
+HDAdvisors will continue to work with PHA on the following next steps:
+
+* Develop consistent data entry/collection procedures to reduce time needed for data cleaning/correction in future analysis.
+* Collect and analyze program application data for clients who did not receive assistance from DPL and/or SPARC. Assess, if possible, reasons for denial and compare with loan denial trends in HMDA data.
+
+`Plenty more to add here`
 

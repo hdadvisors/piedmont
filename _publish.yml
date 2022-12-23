@@ -1,0 +1,4 @@
+- source: piedmont.qmd
+  quarto-pub:
+    - id: 30216cde-b24f-49ad-81f7-a707f1f6bd83
+      url: 'https://quartopub.com/sites/jtknopf/pha-data-analysis'
