@@ -19,13 +19,23 @@ code-overflow: scroll
 #| code-fold: true
 #| code-summary: "Setup code"
 
+# Load data management and analysis tools
+
 library(tidyverse)
+library(readxl)
+library(janitor)
+
+# Load data visualization tools
+
 library(hdatools)
 library(scales)
 library(ggiraph)
 library(ggtext)
+library(reactable)
 
 today <- Sys.Date()
+
+setwd("~/repos/piedmont")
 
 ```
 
@@ -117,7 +127,204 @@ Information about clients' mortgages are also provided:
 
 The full dataset includes multiple other fields that are not necessary or relevant to this analysis.
 
-`Add steps on cleaning/preparing this data`
+**Step 1: Import data**
+
+```{r}
+#| label: data-import
+#| code-fold: true
+#| code-summary: "Client data import"
+
+# Import list of DPL clients and clean column names
+
+clients_dpl_raw <- read_xlsx("data/raw/clients.xlsx",
+                             sheet = "Down Payment Loan") |> 
+  clean_names()
+  
+
+# Import list of SPARC clients and clean column names
+
+clients_sparc_raw <- read_xlsx("data/raw/clients.xlsx",
+                             sheet = "SPARC") |> 
+  clean_names()
+
+```
+
+**Step 2: Clean up and fix data**
+
+```{r}
+#| label: dpl-data-prep
+#| code-fold: true
+#| code-summary: "DPL client data prep"
+
+# Clean up data
+
+clients_dpl <- clients_dpl_raw |> 
+  
+  # Drop rows that do not have client records
+  
+  drop_na(contract_date) |>
+  
+  # Remove columns with personal information or unnecessary data
+  
+  select(!c(fha_case_number, ami_approval_date, client_intake_date,
+            client_last_name, client_first_name, counselor,
+            service_type, client_employer, employer_msa,
+            property_msa, status, loan_officer, client_msa,
+            client_email_address, phone_number
+            )) |> 
+  
+  # Rename certain columns to more helpful descriptions
+  
+  rename(mortgage_product = x1st_mortgage_product,
+         mortgage_amount = x1st_mortgage_amount,
+         pha_loans_n = number_of_pha_loans,
+         pha_loans_amount = of_pha_loans,
+         pha_loan_source = source_of_pha_loan
+         ) |> 
+  
+  # Create new unique DPL client ID column
+  
+  mutate(id_dpl = str_c("DPL", str_pad(row_number(), 3, pad = "0")),
+         .before = 1) |> 
+  
+  # Change "Unknown" values to NA in appraised_value
+  
+  mutate(appraised_value = as.numeric(na_if(appraised_value, "Unknown"))) |> 
+  
+  # Clean up lending_institution names
+
+  mutate(lending_institution = case_when(
+    str_detect(lending_institution, "Coast") ~ "Atlantic Coast Mortgage",
+    str_detect(lending_institution, "Fulton") ~ "Fulton Mortgage",
+    str_detect(lending_institution, "Charlottesville") ~ "Habitat for Humanity of Greater Charlottesville",
+    str_detect(lending_institution, regex("first", ignore_case = T)) ~ "Towne First Mortgage",
+    str_detect(lending_institution, "USDA") ~ "USDA",
+    str_detect(lending_institution, "Waterstone") ~ "Waterstone Mortgage Corporation",
+    lending_institution == "Towne Bank Mortgage" ~ "TowneBank Mortgage",
+    TRUE ~ lending_institution
+  )) |> 
+  
+  # Clean up mortgage_product names
+  
+  mutate(mortgage_product = case_when(
+    str_detect(mortgage_product, "502|USDA|RHS") ~ "502 Direct Loan",
+    mortgage_product == "Coventional" ~ "Conventional",
+    str_detect(mortgage_product, "VHDA FHA|VHDA - HFA") ~ "VHDA - FHA",
+    TRUE ~ mortgage_product
+  )) |> 
+  
+  # Change '$-' values in other_assistance_amount to NA
+  
+  mutate(other_assistance_amount = as.numeric(na_if(other_assistance_amount, "$-"))) |> 
+  
+  # Create column for single or multiple race; clean up race names
+  
+  mutate(multirace = case_when(
+      str_detect(race, "Multi") ~ "Multiple",
+      TRUE ~ "Single"),
+    .before = race) |> 
+  
+  mutate(race = case_when(
+    str_detect(race, "and White") ~ "Black and White",
+    str_detect(race, "Other") ~ "Other races",
+    str_detect(race, "Asian") ~ "Asian",
+    str_detect(race, "Single Race - Black") ~ "Black",
+    TRUE ~ "White"
+  )) |> 
+  
+  # Simplify rural_area_status and english_proficiency columns
+  
+  mutate(rural_area_status = case_when(
+    str_detect(rural_area_status, "lives") ~ "Rural",
+    TRUE ~ "Not rural"
+  )) |> 
+  
+  mutate(english_proficiency = case_when(
+    str_detect(english_proficiency, "is not") ~ "Not proficient",
+    TRUE ~ "Proficient"
+  ))
+
+```
+
+```{r}
+#| label: sparc-data-prep
+#| code-fold: true
+#| code-summary: "SPARC client data prep"
+
+# Clean up data
+
+clients_sparc <- clients_sparc_raw |> 
+  
+  # Remove columns with personal information or unnecessary data
+  
+  select(!c(last_name, first_name, client,
+            lenders_name, x19)) |> 
+  
+  # Rename certain columns to match DPL data
+  
+  rename(sale_price = sales_price,
+         mortgage_amount = base_loan_amount,
+         household_income = borrower_s_income,
+         household_size = number_in_hh,
+         locality = msa,
+         mortgage_product = loan_product,
+         lending_institution = lending_company
+         ) |> 
+  
+  # Create new unique SPARC client ID column
+  
+  mutate(id_sparc = str_c("SPC", str_pad(row_number(), 3, pad = "0")),
+         .before = 1) |> 
+  
+  # Create mortgage_notes column for specific loan info
+  
+  mutate(mortgage_notes = case_when(
+    str_detect(mortgage_product, "No MI") ~ "No mortgage insurance",
+    str_detect(mortgage_product, "Reduced") ~ "Reduced mortgage insurance",
+    str_detect(mortgage_product, "Second Plus") ~ "Second Plus",
+    TRUE ~ NA_character_),
+    .after = mortgage_product
+    ) |> 
+  
+  # Clean up mortgage_product names to match DPL data
+  
+  mutate(mortgage_product = case_when(
+    str_detect(mortgage_product, regex("Conventional", ignore_case = T)) ~ "Conventional",
+    str_detect(mortgage_product, regex("RHS", ignore_case = T)) ~ "502 Direct Loan",
+    str_detect(mortgage_product, regex("FHA", ignore_case = T)) ~ "FHA",
+    is.na(mortgage_product) ~ "Unknown",
+    TRUE ~ mortgage_product
+  ))
+  
+
+```
+
+**Step 3: View data**
+
+Cleaned DPL client data:
+
+```{r}
+#| label: dpl-table
+#| echo: false
+
+reactable(clients_dpl,
+          compact = TRUE,
+          defaultPageSize = 5,
+          wrap = FALSE)
+
+```
+
+::: {.callout-warning}
+## Data integrity issues
+Both the DPL and SPARC datasets were found to have data integrity issues that PHA should resolve in the future.
+
+* Mortgage product fields included both "RHS" (Rural Housing Service), "USDA", and "502" values. For now, these are all assumed to be "502 Direct Loans".
+
+* The SPARC client records are missing many values in the closing date, interest rate, household income, household size, and lender columns.
+
+* Some DPL clients were noted as receiving SPARC in the `other_assistance` column. However, two of clients were *not* found in the SPARC data.
+:::
+
 
 ## Regional and neighborhood profiles
 
