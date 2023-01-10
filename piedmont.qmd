@@ -25,6 +25,7 @@ library(tidyverse)
 library(tidycensus)
 library(readxl)
 library(janitor)
+library(lubridate)
 
 # Load data visualization tools
 
@@ -541,7 +542,6 @@ cv_race |>
 
 # tbd
 
-
 ```
 
 ```{r}
@@ -550,7 +550,6 @@ cv_race |>
 #| code-summary: "Prep data"
 
 # tbd
-
 
 ```
 
@@ -659,8 +658,52 @@ Fields included in this exports include:
 
 ## Profile of clients
 
+### Total served
+
+From July 2017 through September 2022, PHA served a total of 131 households with its DPL and SPARC programs.
+
 ```{r}
-# Total number and total by month/year
+#| label: served
+#| code-fold: true
+#| code-summary: "View code"
+
+# Cumulative total served by program
+
+prog_total <- clients_all |> 
+  select(program, close_date_dpl, close_date_spc) |> 
+  
+  # Collapse close dates into one column
+  # Assume DPL close date is correct when SPARC date differs
+  
+  mutate(close_date = case_when(
+    !is.na(close_date_dpl) ~ close_date_dpl,
+    TRUE ~ close_date_spc
+  )) |> 
+  drop_na(close_date) |> 
+  
+  # Summarise clients by month
+  
+  count(program, month = floor_date(close_date, "month")) |> 
+  ungroup() |> 
+  complete(program, month, fill = list(n = 0)) |> 
+  
+  # Cumulative sum by program
+  
+  group_by(program) |>
+  mutate(cum_sum = cumsum(n))
+  
+# Create plot
+
+ggplot(prog_total, aes(x = month, y = cum_sum, fill = program)) +
+  geom_area() +
+  scale_fill_hda() +
+  labs(title = "Cumulative total of clients served by program") +
+  theme_hda()
+
+
+```
+
+```{r}
 # DPL-only, SPARC-only, and "double-dipping" clients
 # Race and ethnicity
 # Income
