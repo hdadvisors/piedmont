@@ -11,12 +11,12 @@ execute:
   echo: true
   warning: false
   freeze: auto
+code-fold: true
 code-overflow: scroll
 ---
 
 ```{r}
 #| label: setup
-#| code-fold: true
 #| code-summary: "Setup code"
 
 # Load data management and analysis tools
@@ -35,6 +35,7 @@ library(ggiraph)
 library(ggtext)
 library(kableExtra)
 library(reactable)
+library(patchwork)
 
 today <- Sys.Date()
 
@@ -134,7 +135,6 @@ The full dataset includes multiple other fields that are not necessary or releva
 
 ```{r}
 #| label: data-import
-#| code-fold: true
 #| code-summary: "Client data import"
 
 # Import list of DPL clients and clean column names
@@ -156,7 +156,6 @@ clients_sparc_raw <- read_xlsx("data/raw/clients.xlsx",
 
 ```{r}
 #| label: dpl-data-prep
-#| code-fold: true
 #| code-summary: "DPL client data prep"
 
 # Clean up DPL data
@@ -255,7 +254,6 @@ clients_dpl <- clients_dpl_raw |>
 
 ```{r}
 #| label: sparc-data-prep
-#| code-fold: true
 #| code-summary: "SPARC client data prep"
 
 # Clean up SPARC data
@@ -347,7 +345,6 @@ In the future, PHA should maintain a single client dataset that can differentiat
 
 ```{r}
 #| label: data-join
-#| code-fold: true
 #| code-summary: "Client data join"
 
 # Create full join using client_number
@@ -387,7 +384,6 @@ Cleaned and joined client data are shown in the table below.
 
 ```{r}
 #| label: dpl-table
-#| code-fold: true
 #| code-summary: "Generate table"
 
 reactable(clients_all,
@@ -441,7 +437,6 @@ The fields to collect from this data include:
 
 ```{r}
 #| label: acs-race-import
-#| code-fold: true
 #| code-summary: "Import data"
 
 # Get variables for 2020 Census PL-94171 Redistricting dataset
@@ -504,7 +499,6 @@ cv_race_raw <- get_decennial(
 
 ```{r}
 #| label: acs-race-prep
-#| code-fold: true
 #| code-summary: "Prep data"
 
 # Join race and ethnicity labels
@@ -520,7 +514,8 @@ cv_race <- cv_race_raw |>
   # Add percent column
   
   group_by(category) |> 
-  mutate(pct = value/sum(value))
+  mutate(pct = value/sum(value)) |> 
+  ungroup()
 
 # Generate table
 
@@ -537,7 +532,6 @@ cv_race |>
 
 ```{r}
 #| label: acs-inc-import
-#| code-fold: true
 #| code-summary: "Import data"
 
 # tbd
@@ -546,7 +540,6 @@ cv_race |>
 
 ```{r}
 #| label: acs-inc-prep
-#| code-fold: true
 #| code-summary: "Prep data"
 
 # tbd
@@ -557,7 +550,6 @@ cv_race |>
 
 ```{r}
 #| label: acs-tenure-import
-#| code-fold: true
 #| code-summary: "Import data"
 
 # tbd
@@ -566,7 +558,6 @@ cv_race |>
 
 ```{r}
 #| label: acs-tenure-prep
-#| code-fold: true
 #| code-summary: "Prep data"
 
 # tbd
@@ -656,20 +647,17 @@ Fields included in this exports include:
 
 # Analysis
 
-## Profile of clients
-
-### Total served
+## Clients served by program
 
 From July 2017 through September 2022, PHA served a total of 131 households with its DPL and SPARC programs.
 
 ```{r}
-#| label: served
-#| code-fold: true
+#| label: cumulative
 #| code-summary: "View code"
 
 # Cumulative total served by program
 
-prog_total <- clients_all |> 
+clients_total <- clients_all |> 
   select(program, close_date_dpl, close_date_spc) |> 
   
   # Collapse close dates into one column
@@ -678,11 +666,12 @@ prog_total <- clients_all |>
   mutate(close_date = case_when(
     !is.na(close_date_dpl) ~ close_date_dpl,
     TRUE ~ close_date_spc
-  )) |> 
-  drop_na(close_date) |> 
+  ))
   
-  # Summarise clients by month
-  
+# Summarise clients by month
+
+clients_cum <- clients_total |> 
+  drop_na(close_date) |>     
   count(program, month = floor_date(close_date, "month")) |> 
   ungroup() |> 
   complete(program, month, fill = list(n = 0)) |> 
@@ -694,17 +683,191 @@ prog_total <- clients_all |>
   
 # Create plot
 
-ggplot(prog_total, aes(x = month, y = cum_sum, fill = program)) +
+ggplot(clients_cum, aes(x = month, y = cum_sum, fill = program)) +
   geom_area() +
+  scale_y_continuous(breaks = c(25,50,75,100,125)) +
   scale_fill_hda() +
-  labs(title = "Cumulative total of clients served by program") +
-  theme_hda()
-
+  labs(title = "Cumulative total of clients served by program",
+       subtitle = "Data from July 2017 through September 2022",
+       caption = "**Note:** Four records without close dates are omitted.") +
+  theme_hda(base_size = 22) +
+  add_zero_line("y") +
+  theme(
+    legend.position = "top"
+  )
 
 ```
 
+PHA served DPL-only clients from 2017 through 2019, averaging fewer than ten annually. In 2020, PHA began offering SPARC, which has been used by more than 25 clients annually since. Several clients have used both DPL and SPARC assistance each year since 2020.
+
 ```{r}
-# DPL-only, SPARC-only, and "double-dipping" clients
+#| label: annual
+#| code-summary: "View code"
+
+# Summarise data by program and year
+
+clients_annual <- clients_total |> 
+  drop_na(close_date) |>     
+  count(program, year = floor_date(close_date, "year")) |> 
+  ungroup() |> 
+  complete(program, year, fill = list(n = 0)) |> 
+  mutate(year = format(year, "%Y"))
+
+# Create plot
+
+ggplot(clients_annual, aes(x = year, y = n, fill = program)) +
+  geom_col(position = "stack") +
+  scale_fill_hda() +
+  labs(title = "Annual number of clients served by program",
+       subtitle = "Data from July 2017 through September 2022",
+       caption = "**Note:** Four records without close dates are omitted.") +
+  theme_hda(base_size = 20) +
+  add_zero_line("y") +
+  theme(
+    legend.position = "top"
+  )
+
+```
+
+In total, two-thirds (66 percent) of all clients used SPARC only. About one quarter (27 percent) used DPL only, and just eight clients (6 percent) took advantage of both.
+
+```{r}
+#| label: totals
+#| code-summary: "View code"
+
+# Summarise data by program
+
+clients_program <- clients_total |>     
+  count(program)
+
+# Create plot
+
+ggplot(clients_program, aes(y = reorder(program, n), x = n, fill = program, label = n)) +
+  geom_col() +
+  geom_text(hjust = 2,
+            color = "white",
+            size = 10) +
+  scale_fill_hda() +
+  labs(title = "Total number of clients served by program",
+       subtitle = "Data from July 2017 through September 2022") +
+  theme_hda(base_size = 20) +
+  add_zero_line("x") +
+  flip_gridlines()
+
+```
+
+## Profile of clients
+
+Race and ethnicity data is only available for clients who used the DPL program.
+
+```{r}
+#| label: race-ethnicity
+#| code-summary: "View code"
+
+# Summarise clients by race
+
+clients_race <- clients_all |> 
+  count(race) |> 
+  drop_na() |>
+  ungroup() |> 
+  
+  # Add percent column
+  
+  mutate(pct = n/sum(n)) |> 
+  
+  # Add source and category columns
+  
+  mutate(source = "Clients",
+         category = "Race",
+         .before = 1) |> 
+  
+  # Update race labels and column names to match ACS data
+  
+  mutate(race = case_when(
+    race == "Black and White" ~ "Multiracial",
+    race == "Other races" ~ "Another race",
+    TRUE ~ race)) |> 
+  rename(label = race,
+         value = n)
+
+# Same as above for ethnicity
+
+clients_ethnicity <- clients_all |> 
+  count(ethnicity) |> 
+  drop_na() |>
+  ungroup() |> 
+  
+  # Add percent column
+  
+  mutate(pct = n/sum(n)) |> 
+  
+  # Add source and category columns
+  
+  mutate(source = "Clients",
+         category = "Ethnicity",
+         .before = 1) |> 
+  
+  # Update race labels and column names to match ACS data
+  
+  mutate(ethnicity = case_when(
+    ethnicity == "Hispanic" ~ "Hispanic or Latino",
+    ethnicity == "Not Hispanic" ~ "Not Hispanic or Latino",
+    TRUE ~ ethnicity)) |> 
+  rename(label = ethnicity,
+         value = n)
+
+# Add client data to ACS data
+
+race_join <- cv_race |> 
+  mutate(source = "Charlottesville", .before = 1) |> 
+  bind_rows(clients_race, clients_ethnicity)
+
+race_plot <- race_join |> 
+  filter(category == "Race") |> 
+  ggplot(aes(x = pct, y = source, fill = reorder(label, pct), alpha = source)) +
+    geom_col(position = "stack") +
+    scale_fill_hda(-1) +
+    scale_alpha_discrete(range = c(0.6, 1)) +
+    scale_x_continuous(labels = label_percent()) +
+    guides(fill = guide_legend(reverse = TRUE),
+           alpha = "none") +
+    labs(title = "Client race and ethnicity compared to Charlottesville",
+         subtitle = "Includes only DPL clients",
+         fill = "Race") +
+    theme_hda(base_size = 20) +
+    flip_gridlines() +
+    theme(
+      legend.position = "left",
+      legend.justification = "left",
+      legend.title = element_text(hjust = 0)
+    )
+
+ethnicity_plot <- race_join |> 
+  filter(category == "Ethnicity") |> 
+  ggplot(aes(x = pct, y = source, fill = reorder(label, pct), alpha = source)) +
+    geom_col(position = "stack") +
+    scale_fill_hda(-1) +
+    scale_alpha_discrete(range = c(0.6, 1)) +
+    scale_x_continuous(labels = label_percent()) +
+    guides(fill = guide_legend(reverse = TRUE),
+           alpha = "none") +
+    labs(fill = "Ethnicity",
+         caption = "**Source:** U.S. Census Bureau, 2020 Decennial Census P.L. 94-171 Redistricting Data.") +
+    theme_hda(base_size = 20) +
+    flip_gridlines() +
+    theme(
+      legend.position = "left",
+      legend.justification = "left",
+      legend.title = element_text(hjust = 0)
+    )
+
+race_plot + ethnicity_plot +
+  plot_layout(ncol = 1)
+
+```
+
+
+```{r}
 # Race and ethnicity
 # Income
 # Demographic/socioeconomic comparison to region/neighborhood
