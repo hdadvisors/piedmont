@@ -22,6 +22,7 @@ code-overflow: scroll
 # Load data management and analysis tools
 
 library(tidyverse)
+library(tidycensus)
 library(readxl)
 library(janitor)
 
@@ -31,6 +32,7 @@ library(hdatools)
 library(scales)
 library(ggiraph)
 library(ggtext)
+library(kableExtra)
 library(reactable)
 
 today <- Sys.Date()
@@ -156,7 +158,7 @@ clients_sparc_raw <- read_xlsx("data/raw/clients.xlsx",
 #| code-fold: true
 #| code-summary: "DPL client data prep"
 
-# Clean up data
+# Clean up DPL data
 
 clients_dpl <- clients_dpl_raw |> 
   
@@ -186,6 +188,10 @@ clients_dpl <- clients_dpl_raw |>
   
   mutate(id_dpl = str_c("DPL", str_pad(row_number(), 3, pad = "0")),
          .before = 1) |> 
+  
+  # Clean up original client_number column
+  
+  mutate(client_number = str_remove_all(client_number, "\\.0")) |> 
   
   # Change "Unknown" values to NA in appraised_value
   
@@ -251,30 +257,41 @@ clients_dpl <- clients_dpl_raw |>
 #| code-fold: true
 #| code-summary: "SPARC client data prep"
 
-# Clean up data
+# Clean up SPARC data
 
 clients_sparc <- clients_sparc_raw |> 
   
   # Remove columns with personal information or unnecessary data
   
   select(!c(last_name, first_name, client,
-            lenders_name, x19)) |> 
+            lenders_name, x20)) |> 
   
   # Rename certain columns to match DPL data
   
   rename(sale_price = sales_price,
          mortgage_amount = base_loan_amount,
-         household_income = borrower_s_income,
+         household_annual_income = borrower_s_income,
          household_size = number_in_hh,
          locality = msa,
          mortgage_product = loan_product,
          lending_institution = lending_company
          ) |> 
   
+  # Change client_number column to string
+  
+  mutate(client_number = as.character(client_number)) |> 
+  
   # Create new unique SPARC client ID column
   
   mutate(id_sparc = str_c("SPC", str_pad(row_number(), 3, pad = "0")),
          .before = 1) |> 
+  
+  # Fix interest_rate values
+  
+  mutate(interest_rate = case_when(
+    interest_rate > 1 ~ interest_rate/100,
+    TRUE ~ interest_rate
+  )) |> 
   
   # Create mortgage_notes column for specific loan info
   
@@ -294,25 +311,94 @@ clients_sparc <- clients_sparc_raw |>
     str_detect(mortgage_product, regex("FHA", ignore_case = T)) ~ "FHA",
     is.na(mortgage_product) ~ "Unknown",
     TRUE ~ mortgage_product
-  ))
+  )) |> 
   
+  # Clean up lending_institution names to match DPL data
+
+  mutate(lending_institution = case_when(
+    str_detect(lending_institution, "C&F") ~ "C&F Mortgage Corporation",
+    str_detect(lending_institution, "Waterstone") ~ "Waterstone Mortgage Corporation",
+    is.na(lending_institution) ~ "Unknown",
+    TRUE ~ lending_institution
+  )) |> 
+  
+  # Clean up yes/no columns
+  
+  mutate(received_cd = case_when(
+    str_detect(received_cd, "YES|Yes|yes") ~ "Yes",
+    received_cd == "no" ~ "No",
+    received_cd == "N/A" ~ NA_character_,
+    TRUE ~ NA_character_
+  )) |> 
+  
+  mutate(in_ors = case_when(
+    str_detect(in_ors, "No -") ~ "No",
+    TRUE ~ in_ors
+  ))
 
 ```
 
-**Step 3: View data**
+**Step 3: Join DPL and SPARC client data**
 
-Cleaned DPL client data:
+Some clients use both the DPL and SPARC programs to purchase their home. For now, these clients were identified by manually cross-referencing names and other fields. To join the data, the DPL `client_number` values were assigned to the respective client records in the SPARC data.
+
+In the future, PHA should maintain a single client dataset that can differentiate between DPL-only, SPARC-only, and "double-dipping" clients. Specific recommendations will be detailed at the end of this document.
+
+```{r}
+#| label: data-join
+#| code-fold: true
+#| code-summary: "Client data join"
+
+# Create full join using client_number
+
+clients_all <- clients_dpl |> 
+  full_join(clients_sparc, by = "client_number", na_matches = "never",
+            suffix = c("_dpl", "_spc")) |> 
+  
+  # Reorder columns to place duplicate fields together
+  
+  select(2, 1, 46, 3, 4, 47, 5, 52, 6, 7, 53, 8, 9,
+         10, 11, 12, 13, 14, 50, 15, 16, 17, 59, 18,
+         55, 19, 51, 20, 49, 48, 50, 21, 22, 23, 24,
+         25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+         36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 54,
+         56, 57, 60, 61
+         ) |> 
+  
+  # Create column to show whether client uses one or both programs
+  
+  mutate(program = case_when(
+      !is.na(id_dpl) & !is.na(id_sparc) ~ "Both",
+      !is.na(id_dpl) & is.na(id_sparc) ~ "DPL",
+      TRUE ~ "SPARC"),
+    .before = 1) |> 
+  
+  # Create universal client ID column
+  
+  mutate(id_pha = str_c("PHA", str_pad(row_number(), 3, pad = "0")),
+         .before = 1)
+
+```
+
+**Step 4: View data**
+
+Cleaned and joined client data are shown in the table below.
 
 ```{r}
 #| label: dpl-table
-#| echo: false
+#| code-fold: true
+#| code-summary: "Generate table"
 
-reactable(clients_dpl,
-          compact = TRUE,
+reactable(clients_all,
           defaultPageSize = 5,
+          defaultColDef = colDef(minWidth = 150),
+          compact = TRUE,
+          striped = TRUE,
           wrap = FALSE)
 
 ```
+
+Where there were duplicate fields from each dataset, the `_dpl` and `_spc` suffixes were added to the end of column names, respective to their source. For example, the close date data from the DPL records are retained as the `close_date_dpl` column, while the close dates from the SPARC data are `close_date_spc`.
 
 ::: {.callout-warning}
 ## Data integrity issues
@@ -320,11 +406,12 @@ Both the DPL and SPARC datasets were found to have data integrity issues that PH
 
 * Mortgage product fields included both "RHS" (Rural Housing Service), "USDA", and "502" values. For now, these are all assumed to be "502 Direct Loans".
 
+* Overlapping fields from the DPL and SPARC datasets do not always reconcile for the clients who used both programs. For example, the specific close dates and household income values are often slightly different---but should, in theory, be identical.
+
 * The SPARC client records are missing many values in the closing date, interest rate, household income, household size, and lender columns.
 
 * Some DPL clients were noted as receiving SPARC in the `other_assistance` column. However, two of clients were *not* found in the SPARC data.
 :::
-
 
 ## Regional and neighborhood profiles
 
@@ -349,7 +436,143 @@ The fields to collect from this data include:
 * Average household incomes
 * Homeownership rates
 
-`Add steps on cleaning/preparing this data`
+**Step 1: Race and ethnicity data from 2020 Census**
+
+```{r}
+#| label: acs-race-import
+#| code-fold: true
+#| code-summary: "Import data"
+
+# Get variables for 2020 Census PL-94171 Redistricting dataset
+
+pl_vars <- load_variables(2020, "pl")
+
+# Find and select race and ethnicity variables
+
+race_vars <- pl_vars |> 
+  filter(name %in% c(
+    "P1_003N", # White
+    "P1_004N", # Black
+    "P1_005N", # American Indian and Alaska Native
+    "P1_006N", # Asian
+    "P1_007N", # Native Hawaiian and Other Pacific Islander
+    "P1_008N", # Some other race
+    "P1_009N", # Two or more races
+    "P2_002N", # Total Hispanic or Latino
+    "P2_003N"  # Total not Hispanic or Latino
+  )) |> 
+  
+  # Rename race and ethnicity groups 
+  
+  mutate(label = case_when(
+    name == "P1_003N" ~ "White",
+    name == "P1_004N" ~ "Black",
+    name == "P1_005N" ~ "Another race",
+    name == "P1_006N" ~ "Asian",
+    name == "P1_007N" ~ "Another race",
+    name == "P1_008N" ~ "Another race",
+    name == "P1_009N" ~ "Multiracial",
+    name == "P2_002N" ~ "Hispanic or Latino",
+    name == "P2_003N" ~ "Not Hispanic or Latino",
+  )) |> 
+  
+  # Add race/ethnicity label
+  
+  mutate(category = case_when(
+      str_detect(name, "P1") ~ "Race",
+      TRUE ~ "Ethnicity"),
+    .after = 1
+  ) |> 
+  
+  # Drop concept column (unneeded)
+  
+  select(-concept)
+
+# Import 2020 Census race and ethnicity data for Charlottesville City
+
+cv_race_raw <- get_decennial(
+  geography = "county",
+  variables = race_vars$name,
+  year = 2020,
+  sumfile = "pl",
+  state = "VA",
+  county = "Charlottesville city"
+)
+
+```
+
+```{r}
+#| label: acs-race-prep
+#| code-fold: true
+#| code-summary: "Prep data"
+
+# Join race and ethnicity labels
+
+cv_race <- cv_race_raw |> 
+  left_join(race_vars, by = c("variable" = "name")) |> 
+  
+  # Sum "Another race" values into one row
+  
+  group_by(category, label) |> 
+  summarise(value = sum(value)) |> 
+  
+  # Add percent column
+  
+  group_by(category) |> 
+  mutate(pct = value/sum(value))
+
+# Generate table
+
+cv_race |> 
+  arrange(desc(value), .by_group = TRUE) |> 
+  kable() |> 
+  kableExtra::kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed", "responsive")
+  )
+
+```
+
+**Step 2: Household income data from ACS**
+
+```{r}
+#| label: acs-inc-import
+#| code-fold: true
+#| code-summary: "Import data"
+
+# tbd
+
+
+```
+
+```{r}
+#| label: acs-inc-prep
+#| code-fold: true
+#| code-summary: "Prep data"
+
+# tbd
+
+
+```
+
+**Step 3: Homeownership data from ACS**
+
+```{r}
+#| label: acs-tenure-import
+#| code-fold: true
+#| code-summary: "Import data"
+
+# tbd
+
+```
+
+```{r}
+#| label: acs-tenure-prep
+#| code-fold: true
+#| code-summary: "Prep data"
+
+# tbd
+
+```
 
 ## Mortgage applications and activity
 
