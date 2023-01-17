@@ -33,6 +33,7 @@ library(hdatools)
 library(scales)
 library(ggiraph)
 library(ggtext)
+library(ggridges)
 library(kableExtra)
 library(reactable)
 library(patchwork)
@@ -534,7 +535,29 @@ cv_race |>
 #| label: acs-inc-import
 #| code-summary: "Import data"
 
-# tbd
+# Get variables for Table B25118: Tenure by Household Income
+
+b25118_vars <- load_variables(2021, "acs5") |> 
+  filter(str_sub(name, end = 6) %in% "B25118")
+
+# Clean variables
+
+inc_vars <- b25118_vars |> 
+  separate(label, c("est", "total", "tenure", "income"), sep = "!!") |> 
+  select(1, 4, 5) |> 
+  drop_na() |> 
+  mutate(tenure = str_remove_all(tenure, " occupied:"),
+         tenure = str_replace_all(tenure, "Owner", "Homeowner"))
+
+# Import 2021 ACS estimates
+
+b25118_raw <- get_acs(
+  geography = "county",
+  variables = inc_vars$name,
+  year = 2021,
+  county = "Charlottesville city",
+  state = "VA"
+)
 
 ```
 
@@ -542,7 +565,30 @@ cv_race |>
 #| label: acs-inc-prep
 #| code-summary: "Prep data"
 
-# tbd
+# Join variables to data
+
+cv_income <- b25118_raw |> 
+  left_join(inc_vars, by = c("variable" = "name")) |> 
+  
+  # Remove unnecessary columns and rearrange
+  
+  select(6, 7, 4) |> 
+  
+  # Collapse into fewer income categories
+  
+  mutate(income = case_when(
+    income == "Less than $5,000" ~ "Less than $35,000",
+    income == "$5,000 to $9,999" ~ "Less than $35,000",
+    income == "$10,000 to $14,999" ~ "Less than $35,000",
+    income == "$15,000 to $19,999" ~ "Less than $35,000",
+    income == "$20,000 to $24,999" ~ "Less than $35,000",
+    income == "$25,000 to $34,999" ~ "Less than $35,000",
+    income == "$100,000 to $149,999" ~ "$100,000 or more",
+    income == "$150,000 or more" ~ "$100,000 or more",
+    TRUE ~ income
+  )) |> 
+  group_by(tenure, income) |> 
+  summarise(estimate = sum(estimate))
 
 ```
 
@@ -758,7 +804,13 @@ ggplot(clients_program, aes(y = reorder(program, n), x = n, fill = program, labe
 
 ## Profile of clients
 
+::: {.callout-warning}
 Race and ethnicity data is only available for clients who used the DPL program.
+:::
+
+Among the 44 clients who used the DPL program, most were white (41 percent) or Black (34 percent). Another 11 percent were Asian, with the remainder being multiracial or of another race. This is a more diverse pattern than Charlottesville as a whole, where 65 percent of residents are white, while only 15 percent of residents are Black, and 9 percent are Asian.
+
+The share of DPL clients who are Hispanic or Latino is about 7 percent, which aligns very closely with the overall population of Charlottesville.
 
 ```{r}
 #| label: race-ethnicity
@@ -866,11 +918,159 @@ race_plot + ethnicity_plot +
 
 ```
 
+Household incomes are available for 88 of the 131 clients. Of the 43 clients with no income data, all are SPARC-only records. Six of the eight DPL clients who also used SPARC have two incomes recorded for each program---these values all differ, sometimes significantly.
 
 ```{r}
-# Race and ethnicity
-# Income
-# Demographic/socioeconomic comparison to region/neighborhood
+#| label: income-data
+#| code-summary: "View code"
+
+# Summarise clients by household income
+
+clients_inc <- clients_all |> 
+  
+  # Select only id_pha, program, and income columns
+  
+  select(1, 2, 9, 10, 11) |> 
+  
+  # Combine DLP and SPARC incomes into one column
+  
+  mutate(income = case_when(
+    !is.na(household_annual_income_dpl) & !is.na(household_annual_income_spc) ~ household_annual_income_dpl,
+    !is.na(household_annual_income_dpl) & is.na(household_annual_income_spc) ~ household_annual_income_dpl,
+    is.na(household_annual_income_dpl) & !is.na(household_annual_income_spc) ~ household_annual_income_spc,
+    TRUE ~ NA_real_
+  )) |> 
+  
+  # Add column describing income data availability
+  
+  mutate(data = case_when(
+    !is.na(household_annual_income_dpl) & !is.na(household_annual_income_spc) ~ "Different incomes recorded",
+    !is.na(household_annual_income_dpl) & is.na(household_annual_income_spc) ~ "Income recorded",
+    is.na(household_annual_income_dpl) & !is.na(household_annual_income_spc) ~ "Income recorded",
+    TRUE ~ "No data"
+  )) 
+
+# Create plot showing income data availability
+
+clients_inc |> 
+  group_by(program, data) |> 
+  summarise(n = n()) |> 
+  ggplot(aes(x = reorder(program, n, decreasing = TRUE), y = n, fill = data)) +
+    geom_col(position = "stack") +
+    scale_fill_hda() +
+    labs(title = "Client income data availability by program",
+         subtitle = "Data from July 2017 through September 2022") +
+    theme_hda(base_size = 20) +
+    add_zero_line("y") +
+    theme(
+      legend.position = "top"
+    )
+
+```
+
+Most of PHA's clients have household incomes between \$25,000 and \$60,000. However, the incomes of SPARC-only clients skew slightly higher, with some above \$75,000.
+
+```{r}
+#| label: income-plot
+#| code-summary: "View code"
+
+# Summarise income by program
+
+ggplot(clients_inc, aes(x = income, y = program, fill = program)) +
+  geom_density_ridges(alpha = 0.9) +
+  scale_fill_hda() +
+  scale_x_continuous(labels = label_dollar()) +
+  labs(title = "Client household income by program",
+       subtitle = "Data from July 2017 through September 2022",
+       caption = "**Note:** Does not include 43 SPARC clients with no recorded income.") +
+  theme_hda(base_size = 20) +
+  flip_gridlines()
+
+```
+
+Area median incomes (AMI) are calculated only for clients who used the DPL program. AMIs are most commonly between 50 and 80 percent, in line with program eligibility guidelines. On average, AMIs of the DPL clients who also used SPARC are slightly lower than those of clients who used DPL only.
+
+```{r}
+#| label: ami
+#| code-summary: "View code"
+
+# Summarise AMI by program
+
+clients_inc |> filter(program != "SPARC") |> 
+ggplot(aes(x = client_ami, y = program, fill = program)) +
+  geom_density_ridges(alpha = 0.9) +
+  scale_fill_hda() +
+  scale_x_continuous(labels = label_percent(), breaks = c(0, 0.3, 0.5, 0.6, 0.7, 0.8, 1)) +
+  labs(title = "Client AMI by program",
+       subtitle = "Data from July 2017 through September 2022",
+       caption = "**Note:** Does not include 43 SPARC clients with no recorded income.") +
+  theme_hda(base_size = 20) +
+  flip_gridlines()
+
+```
+
+Compared to the distribution of household incomes in Charlottesville, clients are much more likely to earn more than most renters, while still making significantly less than most homeowners. Over 78 percent of clients earn between \$35,000 and \$75,000, versus just 27 percent of renters and 20 percent of homeowners.
+
+```{r}
+#| label: income-compare
+#| code-summary: "View code"
+
+# Assign client incomes to ACS categories
+
+clients_inc_sum <- clients_inc |> 
+  mutate(income = case_when(
+    income < 35000 ~ "Less than $35,000",
+    income >= 35000 & income < 50000  ~ "$35,000 to $49,999",
+    income >= 50000 & income < 75000  ~ "$50,000 to $74,999",
+    income >= 75000 & income < 100000  ~ "$75,000 to $99,999",
+    income >= 100000 ~ "$100,000 or more",
+    TRUE ~ "No data"
+  )) |> 
+  
+  # Filter out clients with no income data (optional)
+  
+  filter(income != "No data") |>  
+  
+  # Summarise clients by category
+  
+  count(income) |> 
+  
+  # Get column names to match ACS data
+  
+  mutate(tenure = "Clients", .before = 1) |> 
+  rename(estimate = n)
+
+# Join ACS income data with client income data
+
+clients_cv_inc <- clients_inc_sum |> 
+  bind_rows(cv_income) |> 
+  
+  # Add percentages
+  
+  group_by(tenure) |> 
+  mutate(pct = estimate/sum(estimate)) |> 
+  
+  # Reorder income categories
+  
+  mutate(income = fct_relevel(
+    income, "Less than $35,000", "$35,000 to $49,999", "$50,000 to $74,999",
+    "$75,000 to $99,999", "$100,000 or more"))
+
+# Create plot
+
+ggplot(clients_cv_inc, aes(y = pct, x = tenure, fill = tenure)) +
+  geom_col() +
+  facet_wrap(~income, nrow = 1, labeller = label_wrap_gen(12)) +
+  scale_y_continuous(labels = label_percent()) +
+  scale_fill_hda() +
+  labs(title = "Client income compared to Charlottesville",
+       subtitle = "Data from July 2017 through September 2022",
+       caption = "**Source:** U.S. Census Bureau, American Community Survey, 2017-2021 5-year estimates. Table B25118.<br>**Note:** Does not include 43 records where client income data not available.") +
+  theme_hda(base_size = 20) +
+  add_zero_line("y") +
+  theme(axis.text.x = element_blank(),
+        legend.position = "top")
+
 ```
 
 ## Assistance levels
