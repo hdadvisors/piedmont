@@ -37,6 +37,7 @@ library(ggridges)
 library(kableExtra)
 library(reactable)
 library(patchwork)
+library(formattable)
 
 today <- Sys.Date()
 
@@ -1075,6 +1076,49 @@ ggplot(clients_cv_inc, aes(y = pct, x = tenure, fill = tenure)) +
 
 ## Assistance levels
 
+PHA's DPL program uses funds from a number of different sources.
+
+```{r}
+#| label: dpl-sources
+#| code-summary: "View code"
+
+dpl_sources <- clients_all |> 
+  filter(program != "SPARC") |> 
+  select(1, 2, 36:43) |> 
+  pivot_longer(
+    cols = c(3:10),
+    names_to = "source",
+    values_to = "x"
+  ) |> 
+  group_by(source) |> 
+  summarise(count = sum(x)) |> 
+  mutate(source = case_when(
+    source == "dhcd" ~ "DHCD HOME",
+    source == "achap" ~ "Albemarle County HAP",
+    source == "cdfi" ~ "CDFI Regional Down-payment Loan Program",
+    source == "recycled_home" ~ "Recycled HOME",
+    source == "cahf" ~ "Charlottesville Affordable Housing Fund",
+    source == "city" ~ "Charlottesville HOME",
+    source == "pha_regional" ~ "PHA Regional Homeownership Fund",
+    source == "lchap" ~ "Louisa County HAP",
+    TRUE ~ str_to_upper(source)
+  )) |> 
+  mutate(source = str_wrap(source, 20))
+
+ggplot(dpl_sources, aes(x = count, y = reorder(source, count), label = count)) + 
+  geom_col(fill = "#445ca9") +
+  geom_text(color = "#FFFFFF", nudge_x = -0.5) +
+  #scale_fill_hda() +
+  #theme_hda(base_size = 20) +
+  flip_gridlines() +
+  labs(
+    title = "Number of DPL awards by source",
+    subtitle = "Data from July 2017 through September 2022",
+    caption = "**Notes:** 'HAP' = Homebuyer Assistance Program."
+  )
+
+```
+
 ```{r}
 # Number and distribution of DPL sources
 # Amount of non-DPL assistance
@@ -1089,6 +1133,71 @@ ggplot(clients_cv_inc, aes(y = pct, x = tenure, fill = tenure)) +
 ```
 
 ## Housing outcomes
+
+...
+
+```{r}
+#| label: price-table
+#| code-summary: "View code"
+
+# Summarise home sales price by program
+
+clients_inc_price <- clients_all |> 
+
+  # Select only id_pha, program, income, and home sales price columns
+  
+  select(1, 2, 9, 10, 20, 21) |>
+  
+  # Combine DLP and SPARC incomes into one column
+  
+  mutate(income = case_when(
+    !is.na(household_annual_income_dpl) & !is.na(household_annual_income_spc) ~ household_annual_income_dpl,
+    !is.na(household_annual_income_dpl) & is.na(household_annual_income_spc) ~ household_annual_income_dpl,
+    is.na(household_annual_income_dpl) & !is.na(household_annual_income_spc) ~ household_annual_income_spc,
+    TRUE ~ NA_real_
+  )) |> 
+
+  # Combine DLP and SPARC sales prices into one column
+  
+  mutate(price = case_when(
+    !is.na(sale_price_dpl) ~ sale_price_dpl,
+    TRUE ~ sale_price_spc
+  ))
+
+# Generate table
+
+clients_inc_price |> 
+  drop_na(price) |> 
+  group_by(program) |> 
+  summarise(n = n(),
+            price = median(price)) |> 
+  mutate(price = formattable::currency(price, digits = 0)) |> 
+  arrange(desc(price)) |> 
+  kable(col.names = c("Program", "Clients", "Median sales price")) |> 
+  kableExtra::kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed", "responsive")
+  )
+
+```
+
+...
+
+```{r}
+#| label: price-plot
+#| code-summary: "View code"
+
+ggplot(clients_inc_price, aes(x = price, y = program, fill = program)) +
+  geom_density_ridges(alpha = 0.9) +
+  scale_fill_hda() +
+  scale_x_continuous(labels = label_dollar(),
+                     limits = c(75000, 350000),
+                     breaks = c(100000, 150000, 200000, 250000, 300000)) +
+  labs(title = "Client home purchase price by program",
+       subtitle = "Data from July 2017 through September 2022") +
+  theme_hda(base_size = 20) +
+  flip_gridlines()
+
+```
 
 ```{r}
 # Client home attributes and price compared to neighborhood
