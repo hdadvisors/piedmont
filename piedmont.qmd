@@ -39,9 +39,13 @@ library(reactable)
 library(patchwork)
 library(formattable)
 
-today <- Sys.Date()
+# Set defaults
 
 setwd("~/repos/piedmont")
+
+today <- Sys.Date()
+
+showtext::showtext_opts(dpi = 150)
 
 ```
 
@@ -591,6 +595,19 @@ cv_income <- b25118_raw |>
   group_by(tenure, income) |> 
   summarise(estimate = sum(estimate))
 
+# Generate table
+
+cv_income |> 
+  ungroup() |> 
+  mutate(income = fct_relevel(income, "Less than $35,000", "$35,000 to $49,999",
+                              "$50,000 to $74,999", "$75,000 to $99,999",
+                              "$100,000 or more")) |> 
+  arrange(income) |> 
+  kable() |> 
+  kableExtra::kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed", "responsive")
+  )
+
 ```
 
 **Step 3: Homeownership data from ACS**
@@ -737,7 +754,7 @@ ggplot(clients_cum, aes(x = month, y = cum_sum, fill = program)) +
   labs(title = "Cumulative total of clients served by program",
        subtitle = "Data from July 2017 through September 2022",
        caption = "**Note:** Four records without close dates are omitted.") +
-  theme_hda(base_size = 22) +
+  theme_hda() +
   add_zero_line("y") +
   theme(
     legend.position = "top"
@@ -768,7 +785,7 @@ ggplot(clients_annual, aes(x = year, y = n, fill = program)) +
   labs(title = "Annual number of clients served by program",
        subtitle = "Data from July 2017 through September 2022",
        caption = "**Note:** Four records without close dates are omitted.") +
-  theme_hda(base_size = 20) +
+  theme_hda() +
   add_zero_line("y") +
   theme(
     legend.position = "top"
@@ -793,11 +810,11 @@ ggplot(clients_program, aes(y = reorder(program, n), x = n, fill = program, labe
   geom_col() +
   geom_text(hjust = 2,
             color = "white",
-            size = 10) +
+            size = 5) +
   scale_fill_hda() +
   labs(title = "Total number of clients served by program",
        subtitle = "Data from July 2017 through September 2022") +
-  theme_hda(base_size = 20) +
+  theme_hda() +
   add_zero_line("x") +
   flip_gridlines()
 
@@ -887,7 +904,7 @@ race_plot <- race_join |>
     labs(title = "Client race and ethnicity compared to Charlottesville",
          subtitle = "Includes only DPL clients",
          fill = "Race") +
-    theme_hda(base_size = 20) +
+    theme_hda() +
     flip_gridlines() +
     theme(
       legend.position = "left",
@@ -906,7 +923,7 @@ ethnicity_plot <- race_join |>
            alpha = "none") +
     labs(fill = "Ethnicity",
          caption = "**Source:** U.S. Census Bureau, 2020 Decennial Census P.L. 94-171 Redistricting Data.") +
-    theme_hda(base_size = 20) +
+    theme_hda() +
     flip_gridlines() +
     theme(
       legend.position = "left",
@@ -961,7 +978,7 @@ clients_inc |>
     scale_fill_hda() +
     labs(title = "Client income data availability by program",
          subtitle = "Data from July 2017 through September 2022") +
-    theme_hda(base_size = 20) +
+    theme_hda() +
     add_zero_line("y") +
     theme(
       legend.position = "top"
@@ -984,7 +1001,7 @@ ggplot(clients_inc, aes(x = income, y = program, fill = program)) +
   labs(title = "Client household income by program",
        subtitle = "Data from July 2017 through September 2022",
        caption = "**Note:** Does not include 43 SPARC clients with no recorded income.") +
-  theme_hda(base_size = 20) +
+  theme_hda() +
   flip_gridlines()
 
 ```
@@ -1005,7 +1022,7 @@ ggplot(aes(x = client_ami, y = program, fill = program)) +
   labs(title = "Client AMI by program",
        subtitle = "Data from July 2017 through September 2022",
        caption = "**Note:** Does not include 43 SPARC clients with no recorded income.") +
-  theme_hda(base_size = 20) +
+  theme_hda() +
   flip_gridlines()
 
 ```
@@ -1067,7 +1084,7 @@ ggplot(clients_cv_inc, aes(y = pct, x = tenure, fill = tenure)) +
   labs(title = "Client income compared to Charlottesville",
        subtitle = "Data from July 2017 through September 2022",
        caption = "**Source:** U.S. Census Bureau, American Community Survey, 2017-2021 5-year estimates. Table B25118.<br>**Note:** Does not include 43 records where client income data not available.") +
-  theme_hda(base_size = 20) +
+  theme_hda() +
   add_zero_line("y") +
   theme(axis.text.x = element_blank(),
         legend.position = "top")
@@ -1076,7 +1093,7 @@ ggplot(clients_cv_inc, aes(y = pct, x = tenure, fill = tenure)) +
 
 ## Assistance levels
 
-PHA's DPL program uses funds from a number of different sources.
+PHA's DPL program uses funds from a number of different sources. Clients were most commonly supported by HOME funds from DHCD (18) and from Albemarle County's Homebuyer Assistance Program (11). Overall, PHA has used eight separate sources to fund its DPL program.
 
 ```{r}
 #| label: dpl-sources
@@ -1108,9 +1125,9 @@ dpl_sources <- clients_all |>
 ggplot(dpl_sources, aes(x = count, y = reorder(source, count), label = count)) + 
   geom_col(fill = "#445ca9") +
   geom_text(color = "#FFFFFF", nudge_x = -0.5) +
-  #scale_fill_hda() +
-  #theme_hda(base_size = 20) +
+  theme_hda() +
   flip_gridlines() +
+  add_zero_line("x") +
   labs(
     title = "Number of DPL awards by source",
     subtitle = "Data from July 2017 through September 2022",
@@ -1119,10 +1136,118 @@ ggplot(dpl_sources, aes(x = count, y = reorder(source, count), label = count)) +
 
 ```
 
+PHA awarded a total of \$1,242,190 in DPL assistance from July 2017 to September 2022. This amounted to roughly \$28,230 provided per client.
+
 ```{r}
-# Number and distribution of DPL sources
-# Amount of non-DPL assistance
-# Breakdown by race, ethnicity, and income
+#| label: dpl-amount
+#| code-summary: "View code"
+
+dpl_amount <- clients_all |> 
+  drop_na("close_date_dpl") |> 
+  arrange(close_date_dpl) |> 
+  mutate(cum_sum = cumsum(pha_loans_amount))
+
+ggplot(dpl_amount, aes(x = close_date_dpl, y = cum_sum)) +
+  geom_area(fill = "#445ca9") +
+  scale_y_continuous(labels = label_dollar(scale = 0.001, suffix = "k")) +
+  add_zero_line("y") +
+  theme_hda() +
+  labs(
+    title = "Total amount of DPL assistance awarded",
+    subtitle = "Data from July 2017 through September 2022"
+  )
+  
+```
+
+The average amount each client received stayed around \$28,000 from 2017 through 2020. In 2021, that average increased to \$37,435. In 2022, the two clients that received DPL each received significant DPL assistance well above prior year averages.
+
+```{r}
+#| label: dpl-annual
+#| code-summary: "View code"
+
+dpl_annual <- dpl_amount |> 
+  mutate(year = format(close_date_dpl, format = "%Y")) |> 
+  filter(pha_loans_amount != 0) |> 
+  group_by(year) |> 
+  summarise(avg = mean(pha_loans_amount),
+            clients = n())
+
+ggplot(dpl_annual, aes(x = year, y = avg, label = clients)) +
+  geom_col(fill = "#445ca9") +
+  geom_text(vjust = 2,
+            color = "white",
+            size = 5) +
+  annotate("text", x = 2.25, y = 55000, label = "Bars show total number of clients for that year",
+           color = "#445ca9", size = 5) +
+  scale_y_continuous(labels = label_dollar(scale = 0.001, suffix = "k"),
+                     breaks = c(10000, 20000, 30000, 40000, 50000)) +
+  add_zero_line("y") +
+  theme_hda() +
+  labs(
+    title = "Average amount of DPL assistance awarded per client",
+    subtitle = "Data from July 2017 through September 2022"
+  )
+
+```
+
+Black clients were the only race with an average DPL amount (\$20,761) below the overall average. Asian, Black and White, and White-alone clients all had averages between \$32,000 and \$34,000. Three clients of another race tallied a notably higher average at \$42,973.
+
+```{r}
+#| label: dpl-race
+#| code-summary: "View code"
+
+dpl_race <- dpl_amount |> 
+  filter(pha_loans_amount != 0) |> 
+  group_by(race) |> 
+  summarise(avg = mean(pha_loans_amount),
+            clients = n())
+
+ggplot(dpl_race, aes(x = reorder(race, avg), y = avg, fill = race, label = clients)) +
+  geom_col() +
+  geom_text(vjust = 2,
+            color = "white",
+            size = 5) +
+  scale_fill_hda() +
+  scale_y_continuous(labels = label_dollar(scale = 0.001, suffix = "k"),
+                     breaks = c(10000, 20000, 30000, 40000, 50000)) +
+  add_zero_line("y") +
+  theme_hda() +
+  labs(
+    title = "Average amount of DPL assistance awarded by race",
+    subtitle = "Data from July 2017 through September 2022",
+    caption = "**Note:** Bars show total number of clients for that group."
+  )
+
+```
+
+Only five total clients were Hispanic or chose not to respond when asked their ethnicity. As a result, the average DPL amount for non-Hispanic clients (\$29,310) is very close to the overall client average. Among the three clients who were Hispanic, their average DPL amounted to a much larger \$42,316.
+
+```{r}
+#| label: dpl-ethnicity
+#| code-summary: "View code"
+
+dpl_ethnicity <- dpl_amount |> 
+  filter(pha_loans_amount != 0) |> 
+  group_by(ethnicity) |> 
+  summarise(avg = mean(pha_loans_amount),
+            clients = n())
+
+ggplot(dpl_ethnicity, aes(x = reorder(ethnicity, avg), y = avg, fill = ethnicity, label = clients)) +
+  geom_col() +
+  geom_text(vjust = 2,
+            color = "white",
+            size = 5) +
+  scale_fill_hda() +
+  scale_y_continuous(labels = label_dollar(scale = 0.001, suffix = "k"),
+                     breaks = c(10000, 20000, 30000, 40000, 50000)) +
+  add_zero_line("y") +
+  theme_hda() +
+  labs(
+    title = "Average amount of DPL assistance awarded by ethnicity",
+    subtitle = "Data from July 2017 through September 2022",
+    caption = "**Note:** Bars show total number of clients for that group."
+  )
+
 ```
 
 ## Spatial patterns
@@ -1194,7 +1319,7 @@ ggplot(clients_inc_price, aes(x = price, y = program, fill = program)) +
                      breaks = c(100000, 150000, 200000, 250000, 300000)) +
   labs(title = "Client home purchase price by program",
        subtitle = "Data from July 2017 through September 2022") +
-  theme_hda(base_size = 20) +
+  theme_hda() +
   flip_gridlines()
 
 ```
