@@ -1,5 +1,6 @@
 ---
 title: "Piedmont Housing Alliance Data Analysis"
+date: today
 format:
   html:
     toc: true
@@ -27,11 +28,17 @@ library(readxl)
 library(janitor)
 library(lubridate)
 
+# Load spatial analysis tools
+
+library(tidygeocoder)
+library(sf)
+library(tigris)
+library(mapview)
+
 # Load data visualization tools
 
 library(hdatools)
 library(scales)
-library(ggiraph)
 library(ggtext)
 library(ggridges)
 library(kableExtra)
@@ -49,7 +56,7 @@ showtext::showtext_opts(dpi = 150)
 
 ```
 
-::: {.callout-warning}
+::: {.callout-caution}
 ## Please note
 This document is still under construction. It was last updated `r format(today, format = "%B %d, %Y")` at `r format(Sys.time(), "%I:%M %p")`.
 :::
@@ -823,6 +830,7 @@ ggplot(clients_program, aes(y = reorder(program, n), x = n, fill = program, labe
 ## Profile of clients
 
 ::: {.callout-warning}
+### Note
 Race and ethnicity data is only available for clients who used the DPL program.
 :::
 
@@ -1177,15 +1185,14 @@ ggplot(dpl_annual, aes(x = year, y = avg, label = clients)) +
   geom_text(vjust = 2,
             color = "white",
             size = 5) +
-  annotate("text", x = 2.25, y = 55000, label = "Bars show total number of clients for that year",
-           color = "#445ca9", size = 5) +
   scale_y_continuous(labels = label_dollar(scale = 0.001, suffix = "k"),
                      breaks = c(10000, 20000, 30000, 40000, 50000)) +
   add_zero_line("y") +
   theme_hda() +
   labs(
     title = "Average amount of DPL assistance awarded per client",
-    subtitle = "Data from July 2017 through September 2022"
+    subtitle = "Data from July 2017 through September 2022",
+    caption = "**Note:** Bars show total number of clients for that group."
   )
 
 ```
@@ -1251,6 +1258,133 @@ ggplot(dpl_ethnicity, aes(x = reorder(ethnicity, avg), y = avg, fill = ethnicity
 ```
 
 ## Spatial patterns
+
+::: {.callout-warning}
+### Note
+Client and property location data is only available for clients who used the DPL program.
+:::
+
+```{r}
+#| label: geocode
+#| eval: false
+#| code-summary: "Geocode addresses"
+
+# Get list of all localities in Virginia
+
+va_localities <- list_counties("VA")
+
+# Get all census tracts for Virginia
+
+va_tracts <- tracts(state = "VA") |> 
+  left_join(va_localities, by = c("COUNTYFP" = "county_code")) |> 
+  st_transform(4502)
+
+# Geocode client addresses
+
+clients_geocode <- clients_all |> 
+  geocode(street = client_street_address, state = client_state,
+          city = client_city, postalcode = client_zip,
+          method = "geocodio",
+          lat = lat,
+          long = long) |> 
+  
+  # Drop SPARC entries with no address data
+  
+  drop_na(lat) |> 
+  
+  # Specify WGS 1984 coordinate system for lat/long data
+  
+  st_as_sf(coords = c("long", "lat"),
+           remove = FALSE,
+           crs = 4326) |> 
+  
+  # Project into Virginia State Plane South
+  
+  st_transform(4502)
+
+# Spatial join client data with tracts and localities
+  
+clients_sf <- st_join(clients_geocode, va_tracts) |> 
+  rename(Locality = county)
+  
+# Geocode property addresses
+  
+property_geocode <- clients_all |>
+  geocode(street = property_street_address, state = property_state,
+          city = property_city, postalcode = property_zip,
+          method = "geocodio",
+          lat = lat,
+          long = long) |> 
+  
+  # Drop SPARC entries with no address data
+  
+  drop_na(lat) |> 
+  
+  # Specify WGS 1984 coordinate system for lat/long data
+  
+  st_as_sf(coords = c("long", "lat"),
+           remove = FALSE,
+           crs = 4326) |> 
+  
+  # Project into Virginia State Plane South
+  
+  st_transform(4502)
+
+# Spatial join client data with tracts and localities
+  
+property_sf <- st_join(property_geocode, va_tracts) |> 
+  rename(Locality = county)
+
+# Save data
+
+write_rds(clients_sf, "data/clients_sf.rds")
+write_rds(property_sf, "data/property_sf.rds")
+
+```
+
+### Client origins
+
+The map below shows the original addresses of each client, i.e. where they lived when they applied for DPL assistance.
+
+```{r}
+#| label: clients-map
+#| code-summary: "Client map"
+
+# Make map of clients
+
+clients_sf <- read_rds("data/clients_sf.rds")
+
+mapview(
+  clients_sf,
+  zcol = "Locality",
+  layer.name = "Client locality",
+  label = FALSE,
+  popup = FALSE
+)
+
+```
+
+### Client destinations
+
+The map below shows the addresses of homes purchased by clients, i.e. where they moved after using the DPL program.
+
+```{r}
+#| label: property-map
+#| code-summary: "Property map"
+
+# Make map of properties
+
+property_sf <- read_rds("data/property_sf.rds")
+
+mapview(
+  property_sf,
+  zcol = "Locality",
+  layer.name = "Property locality",
+  label = FALSE,
+  popup = FALSE
+)
+
+```
 
 ```{r}
 # Locations of prior client home
