@@ -1363,6 +1363,28 @@ mapview(
 )
 
 ```
+<br>
+Most clients lived in either Albemarle (20) or Charlottesville (17) when they applied to the DPL program. Three clients also came from Fluvanna, while all other origin localities has one client each.
+
+```{r}
+#| label: clients-locality
+#| code-summary: "View code"
+
+clients_locality <- clients_sf |> 
+  count(Locality)
+
+ggplot(clients_locality, aes(x = n, y = reorder(Locality, n), label = n)) +
+  geom_col(fill = "#445ca9") +
+  geom_text(color = "#FFFFFF", nudge_x = -0.5) +
+  theme_hda() +
+  flip_gridlines() +
+  add_zero_line("x") +
+  labs(
+    title = "Number of clients by locality of origin",
+    subtitle = "Data from July 2017 through September 2022"
+  )
+
+```
 
 ### Client destinations
 
@@ -1385,15 +1407,103 @@ mapview(
 )
 
 ```
+<br>
+The majority of homes purchased by clients were in Albemarle (22), followed by Charlottesville (9) and Fluvanna (8). Two or fewer clients purchased homes in each of the other localities.
 
 ```{r}
-# Locations of prior client home
-# Locations of home purchased by client
+#| label: property-locality
+#| code-summary: "View code"
+
+property_locality <- property_sf |> 
+  count(Locality)
+
+ggplot(property_locality, aes(x = n, y = reorder(Locality, n), label = n)) +
+  geom_col(fill = "#445ca9") +
+  geom_text(color = "#FFFFFF", nudge_x = -0.5) +
+  theme_hda() +
+  flip_gridlines() +
+  add_zero_line("x") +
+  labs(
+    title = "Number of clients by destination locality",
+    subtitle = "Data from July 2017 through September 2022"
+  )
+
+```
+
+### Client moves
+
+Most of PHA's DPL clients moved from, moved to, or stayed in Albemarle County or the City of Charlottesville. A similar number of clients were originally from Albemarle (20) and Charlottesville (17), with only seven from elsewhere. Albemarle was the most common destination (22), followed by Charlottesville (9), and Fluvanna (8).
+
+```{r}
+#| label: client-moves
+#| code-summary: "View code"
+
+library(ggsankey)
+
+client_moves <- st_drop_geometry(clients_sf) |> 
+  left_join(st_drop_geometry(property_sf), "id_pha") |> 
+  select("Origin" = 'Locality.x', "Destination" = 'Locality.y')
+
+client_sankey <- client_moves |> 
+  make_long(Origin, Destination)
+
+ggplot(client_sankey, aes(x = x, next_x = next_x,
+                         node = node, next_node = next_node,
+                         fill = node, label = node)) +
+  geom_sankey(flow_alpha = 0.75, smooth = 15) +
+  geom_sankey_label(fill = "white", colour = "#383c3d") +
+  scale_fill_hda(repeat_pal = TRUE) +
+  scale_x_discrete(expand = c(0.05, 0.05), position = "top") +
+  theme_hda() +
+  theme(axis.text.y = element_blank(),
+        panel.grid.major.y = element_blank()) +
+  labs(
+    title = "Origin and destination of DPL clients",
+    subtitle = "Data from July 2017 through September 2022"
+  )
+
+```
+
+Among all clients from Albemarle, most stayed in the county, or to another county. Only one moved into Charlottesville. Just seven of the 17 clients from Charlottesville stayed in the city; the same number moved into Albemarle and the remainder to other counties.
+
+```{r}
+#| label: client-moves-sum
+#| code-summary: "View code"
+
+client_moves_sum <- client_moves |> 
+  mutate(move = case_when(
+    Origin == Destination ~ "Stayed",
+    TRUE ~ "Moved"
+  )) |> 
+  mutate(origin_sum = case_when(
+    Origin %in% c("Fluvanna", "Louisa", "Lynchburg city", "Orange", "Prince William") ~ "From somewhere else",
+    TRUE ~ str_c("From ", Origin)
+  )) |> 
+  mutate(destination_sum = case_when(
+    Destination %in% c("Fluvanna", "Louisa", "Greene", "Prince William") ~ "Somewhere else",
+    TRUE ~ Destination
+  ))
+
+ggplot(client_moves_sum, aes(x = destination_sum, fill = destination_sum)) +
+  facet_wrap(~origin_sum) +
+  geom_bar() +
+  scale_fill_hda() +
+  theme_hda() +
+  add_zero_line("y") +
+  theme(legend.position = "bottom",
+        legend.title = element_text(),
+        axis.text.x = element_blank()) +
+  labs(
+    title = "Number of clients by origin and destination",
+    subtitle = "Data from July 2017 through September 2022",
+    fill = "Destination"
+  )
+
 ```
 
 ## Housing outcomes
 
-...
+The median sales price for all clients was \$224,500, but those prices vary significantly by program.
 
 ```{r}
 #| label: price-table
@@ -1403,9 +1513,9 @@ mapview(
 
 clients_inc_price <- clients_all |> 
 
-  # Select only id_pha, program, income, and home sales price columns
+  # Select only id_pha, program, income, home sales price, and race columns
   
-  select(1, 2, 9, 10, 20, 21) |>
+  select(1, 2, 9, 10, 20, 21, 53) |>
   
   # Combine DLP and SPARC incomes into one column
   
@@ -1429,17 +1539,18 @@ clients_inc_price |>
   drop_na(price) |> 
   group_by(program) |> 
   summarise(n = n(),
-            price = median(price)) |> 
-  mutate(price = formattable::currency(price, digits = 0)) |> 
-  arrange(desc(price)) |> 
-  kable(col.names = c("Program", "Clients", "Median sales price")) |> 
+            median = median(price),
+            mean = mean(price)) |> 
+  mutate(across(3:4, ~ formattable::currency(.x, digits = 0))) |> 
+  arrange(desc(median)) |> 
+  kable(col.names = c("Program", "Clients", "Median sales price", "Mean sales price")) |> 
   kableExtra::kable_styling(
     bootstrap_options = c("striped", "hover", "condensed", "responsive")
   )
 
 ```
 
-...
+Home prices were lowest for DPL-only clients, with most between \$150,000 and \$200,000. SPARC-only clients purchased homes generally between \$200,000 and \$250,000. Clients who used both programs were able to purchase homes at higher prices, on average, than all other clients.
 
 ```{r}
 #| label: price-plot
@@ -1457,6 +1568,43 @@ ggplot(clients_inc_price, aes(x = price, y = program, fill = program)) +
   flip_gridlines()
 
 ```
+
+Average home prices also vary by race. Clients identifying as another race have the highest average, surpassing \$250,000, although this includes only three buyers. Clients whose records do not include their race also have high average prices around \$227,000. These are nearly all SPARC-only clients.
+
+Asian and Black clients have average home prices slightly below the average for all clients, followed by clients who are White or who are White and Black. Those clients have average home prices well below \$200,000.
+
+```{r}
+#| label: price-race
+#| code-summary: "View code"
+
+clients_price_race <- clients_inc_price |> 
+  drop_na(price) |> 
+  group_by(race) |> 
+  summarise(n = n(),
+            Mean = mean(price),
+            Median = median(price)) |> 
+  mutate(race = replace_na(race, "No data")) |> 
+  pivot_longer(3:4, names_to = "stat", values_to = "value")
+
+ggplot(clients_price_race, aes(x = value, y = reorder(race, value),
+                               fill = stat,
+                               label = label_dollar(accuracy = 1, scale = 0.001, suffix = "k")(value))) +
+  geom_col(position = "dodge") +
+  geom_text(color = "white", hjust = 1.25, position = position_dodge(0.9)) +
+  scale_fill_hda() +
+  scale_x_continuous(labels = label_dollar(),
+                     breaks = c(0, 50000, 100000, 150000, 200000, 250000)) +
+  labs(title = "Average client home purchase price by race",
+       subtitle = "Data from July 2017 through September 2022") +
+  theme_hda() +
+  flip_gridlines() +
+  add_zero_line("x") +
+  theme(legend.position = "top") +
+  guides(fill = guide_legend(reverse = TRUE))
+
+```
+
+...
 
 ```{r}
 # Client home attributes and price compared to neighborhood
