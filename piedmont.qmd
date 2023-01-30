@@ -8,6 +8,9 @@ format:
     number-sections: true
     theme: flatly
     author: "Jonathan Knopf (jonathan@hdadvisors.net)"
+#  pdf:
+#    fig-pos: "H"
+#    mainfont: "Open Sans"
 execute: 
   echo: true
   warning: false
@@ -51,8 +54,6 @@ library(formattable)
 setwd("~/repos/piedmont")
 
 today <- Sys.Date()
-
-showtext::showtext_opts(dpi = 150)
 
 ```
 
@@ -454,7 +455,7 @@ The fields to collect from this data include:
 
 # Get variables for 2020 Census PL-94171 Redistricting dataset
 
-pl_vars <- load_variables(2020, "pl")
+pl_vars <- load_variables(2020, "pl", cache = TRUE)
 
 # Find and select race and ethnicity variables
 
@@ -505,7 +506,8 @@ cv_race_raw <- get_decennial(
   year = 2020,
   sumfile = "pl",
   state = "VA",
-  county = "Charlottesville city"
+  county = "Charlottesville city",
+  cache_table = TRUE
 )
 
 ```
@@ -549,7 +551,7 @@ cv_race |>
 
 # Get variables for Table B25118: Tenure by Household Income
 
-b25118_vars <- load_variables(2021, "acs5") |> 
+b25118_vars <- load_variables(2021, "acs5", cache = TRUE) |> 
   filter(str_sub(name, end = 6) %in% "B25118")
 
 # Clean variables
@@ -568,7 +570,8 @@ b25118_raw <- get_acs(
   variables = inc_vars$name,
   year = 2021,
   county = "Charlottesville city",
-  state = "VA"
+  state = "VA",
+  cache_table = TRUE
 )
 
 ```
@@ -688,7 +691,59 @@ The fields to collect from this data include:
 * Finished square footage
 * Total assessed value
 
-`Add steps on cleaning/preparing this data`
+```{r}
+#| label: assessments
+#| code-summary: "View assessment code"
+
+# Load in multi-year assessment data
+
+cv_assess <- read_csv("data/raw/Real_Estate_(All_Assessments).csv") |> 
+  
+  # Filter tax years 2017 and later
+  
+  filter(TaxYear > 2016) |> 
+  
+  # Keep only relevant fields
+  
+  select(ParcelNumber, TotalValue, TaxYear)
+
+```
+
+```{r}
+#| label: parcels
+#| code-summary: "View parcel code"
+#| eval: false
+
+# Load in detailed residential property data
+
+cv_residential <- read_csv("data/raw/Real_Estate_(Residential_Details).csv") |> 
+  
+  # Filter for single-family types only
+  
+  filter(str_detect(UseCode, "Single Family")) |> 
+  
+  # Keep only relevant fields
+  
+  select(ParcelNumber, StreetNumber, StreetName, Bedrooms, HalfBathrooms,
+         FullBathrooms, SqFt = SquareFootageFinishedLiving)
+
+# Load shapefile of parcels
+
+cv_parcels <- st_read("data/shp/Parcel_Area_Details.shp") |> 
+  
+  # Fix column name
+  
+  select(ParcelNumber = ParcelNumb) |> 
+  
+  # Join to detailed residential property data
+  
+  right_join(cv_residential, by = "ParcelNumber")
+
+# Save data
+
+write_rds(cv_parcels, "data/cv_parcels.rds")
+
+```
 
 ### MLS sales
 
@@ -707,7 +762,51 @@ Fields included in this exports include:
 * Bedrooms and bathrooms
 * Finished square footage
 
-`Add steps on cleaning/preparing this data`
+```{r}
+#| label: mls
+#| code-summary: "View code"
+#| eval: false
+
+# Load in records exported from MLS and clean column names
+
+mls <- read_csv("data/raw/Default_MLS_Defined_Spreadsheet.csv") |> 
+  clean_names() |> 
+  
+  # Keep only relevant fields
+  
+  select(address, city, closed_date, number_beds, number_baths, total_sq_ft, list_price)
+  
+# Add state field and geocode addresses
+
+mls_geocode <- mls |> 
+  mutate(state = "VA", .before = 3) |> 
+  geocode(street = address,
+          state = state,
+          city = city,
+          method = "geocodio",
+          lat = lat,
+          long = long) |> 
+  
+  # Drop records that did not match
+  
+  drop_na(lat) |> 
+  
+  # Specify WGS 1984 coordinate system for lat/long data
+  
+  st_as_sf(coords = c("long", "lat"),
+           remove = FALSE,
+           crs = 4326) |> 
+  
+  # Project into Virginia State Plane South
+  
+  st_transform(4502)
+
+# Save data
+
+write_rds(mls_geocode, "data/mls_geocode.rds")
+  
+```
+
 
 ## Other data
 
