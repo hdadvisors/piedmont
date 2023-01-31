@@ -731,6 +731,10 @@ cv_residential <- read_csv("data/raw/Real_Estate_(Residential_Details).csv") |>
 
 cv_parcels <- st_read("data/shp/Parcel_Area_Details.shp") |> 
   
+  # Project into Virginia State Plane South
+  
+  st_transform(4502) |> 
+  
   # Fix column name
   
   select(ParcelNumber = ParcelNumb) |> 
@@ -1541,7 +1545,8 @@ library(ggsankey)
 
 client_moves <- st_drop_geometry(clients_sf) |> 
   left_join(st_drop_geometry(property_sf), "id_pha") |> 
-  select("Origin" = 'Locality.x', "Destination" = 'Locality.y')
+  select("Origin" = 'Locality.x', "Destination" = 'Locality.y') |> 
+  mutate(across(1:2, ~ str_remove_all(.x, " city")))
 
 client_sankey <- client_moves |> 
   make_long(Origin, Destination)
@@ -1550,7 +1555,7 @@ ggplot(client_sankey, aes(x = x, next_x = next_x,
                          node = node, next_node = next_node,
                          fill = node, label = node)) +
   geom_sankey(flow_alpha = 0.75, smooth = 15) +
-  geom_sankey_label(fill = "white", colour = "#383c3d") +
+  geom_sankey_label(fill = "white", colour = "#383c3d", size = 3) +
   scale_fill_hda(repeat_pal = TRUE) +
   scale_x_discrete(expand = c(0.05, 0.05), position = "top") +
   theme_hda() +
@@ -1712,6 +1717,8 @@ ggplot(clients_price_race, aes(x = value, y = reorder(race, value),
 
 ## Home equity
 
+This section explores methods for estimating the amount of home equity that clients have earned since the purchase of their home. Two different methods for projecting equity will be used: the first uses property assessment from the City of Charlottesville, while the second uses property sales records from MLS.
+
 ```{r}
 # Two methods to try and test
 
@@ -1726,6 +1733,201 @@ ggplot(clients_price_race, aes(x = value, y = reorder(race, value),
 # Will have much smaller sample size -- may only be possible at city level
 # Determine if any past clients have already sold home -- would provide most accurate estimate
 ```
+
+### Estimating equity via assessments
+
+The steps for this method include:
+
+**Step 1:** Select earliest recorded DPL clients who purchased a home in the City of Charlottesville. This gives us the longest ownership timeframe for accruing home equity.
+
+```{r}
+#| label: equity-1
+#| code-summary: "View code"
+
+prop_2017 <- property_sf |> 
+  
+  # Select clients with close dates in 2017
+  
+  filter(as_date(close_date_dpl) < as_date("2018-01-01")) |> 
+  
+  # Homes purchased in Charlottesville only
+  
+  filter(Locality == "Charlottesville city") |> 
+  
+  # Keep only necessary columns
+  
+  select(id_pha, close_date_dpl, property_street_address, sale_price_dpl,
+         appraised_value, mortgage_amount_dpl, interest_rate_dpl, GEOID)
+
+```
+
+**Step 2:** Determine which neighborhoods the homes are in. The averages for these neighborhoods will be used as benchmarks.
+
+```{r}
+#| label: equity-2
+#| code-summary: "View code"
+
+# Load in Charlottesville residential parcels
+
+cv_parcels <- read_rds("data/cv_parcels.rds")
+
+# Load in Charlottesville neighborhood boundaries
+
+cv_nhoods <- st_read("data/shp/Planning_Neighborhood_Area.shp") |> 
+    st_transform(4502)
+
+# Spatial join with neighborhoods and parcel records
+
+prop_2017 <- prop_2017 |> 
+  st_join(cv_nhoods) |> 
+  st_join(cv_parcels)
+
+```
+
+**Step 3:** Calculate change in median assessed value from 2017 to 2022 for each neighborhood.
+
+```{r}
+#| label: equity-3
+#| code-summary: "View code"
+
+# Spatial join all parcels to neighborhoods
+
+cv_parcels_nhood <- cv_parcels |> 
+  
+  # Convert parcels to centroid points
+  
+  st_centroid() |> 
+  
+  # Spatial join
+  
+  st_join(cv_nhoods) |> 
+  
+  # Join annual assessment data by parcel
+  
+  left_join(cv_assess, by = "ParcelNumber")
+
+# Calculate median values by year
+
+cv_value_nhood <- cv_parcels_nhood |> 
+  
+  # Drop geometry
+  
+  st_drop_geometry() |> 
+  
+  # Group by neighborhood and year
+  
+  group_by(NAME, TaxYear) |> 
+  
+  # Calculate groupwise median
+  
+  summarise(assessment = median(TotalValue)) |> 
+  
+  # Filter to neighborhoods where homes are
+  
+  filter(NAME %in% c("The Meadows", "Fifeville")) |> 
+  
+  # Add field to mark values as neighborhood average
+  
+  mutate(value = "Neighborhood average")
+
+```
+
+**Step 4:** Calculate percent change in assessed value for client homes and respective neighborhoods.
+
+```{r}
+#| label: equity-4
+#| code-summary: "View code"
+
+# Combine percent change in assessments for homes and neighborhoods
+
+prop_assess <- prop_2017 |> 
+  
+  # Drop geometry
+  
+  st_drop_geometry() |> 
+  
+  # Join annual assessment data by parcel
+  
+  left_join(cv_assess, by = "ParcelNumber") |> 
+  
+  # Keep only necessary columns
+  
+  select(NAME, TaxYear, assessment = TotalValue) |>
+  
+  # Add field to mark values as client home
+  
+  mutate(value = "Client home") |> 
+  
+  # Add neighborhood values
+  
+  bind_rows(cv_value_nhood) |> 
+  
+  # Group by value designation and neighborhood
+  
+  group_by(value, NAME) |> 
+  
+  # Arrange ascending by year
+  
+  arrange(TaxYear) |> 
+  
+  # Calculate cumulative percent change
+  
+  mutate(chg = assessment - first(assessment),
+         pct_chg = chg / first(assessment))
+
+```
+
+The chart below demonstrates how we can compare the change in assessed value for homes purchased by clients to the average change observed in their respective neighborhoods.
+
+```{r}
+#| label: equity-plot
+#| code-summary: "View code"
+
+ggplot(prop_assess, aes(x = TaxYear, y = pct_chg, color = value)) +
+  geom_line(linewidth = 1) +
+  facet_wrap(~NAME) +
+  scale_y_continuous(labels = label_percent()) +
+  scale_color_hda() +
+  theme_hda() +
+  theme(legend.position = "top",
+        axis.text.x = element_text(angle = 90)) +
+  add_zero_line("y") +
+  labs(title = "Value of DPL client homes versus surrounding neighborhoods",
+       subtitle = "Percent change in assessed value from 2017 to 2022",
+       caption = "**Notes:** Homes sold to clients in 2017. Neighborhood average derived from median value<br>of all single-family residential properties.")
+
+```
+
+The plot on the left shows a client's home they purchased in the Fifeville neighborhood in 2017 increasing in total assessed value by almost 50 percent by 2022, compared to a neighborhood average increase of 38 percent.
+
+The plot on the right shows the same for a home purchased by a client in The Meadows. In this case, the assessed value of the client's home almost doubled (76 percent) in the first year following their closing, likely due to the city assessor making a major adjustment following the sale of this home. (It was assessed for \$104,500 in 2017, but sold for \$178,700.) Since 2018, the home's value has increased in close pace with its surrounding neighborhood.
+
+```{r}
+
+prop_assess_tbl <- prop_assess |> 
+  filter(TaxYear %in% c(2017, 2022)) |> 
+  select(1, 4, 2, 3, 6) |> 
+  pivot_longer(cols = 4:5, names_to = "data", values_to = "x") |> 
+  pivot_wider(names_from = TaxYear,
+              values_from = x) |> 
+  pivot_wider(names_from = data,
+              values_from = '2022') |> 
+  rename(assessment17 = '2017', assessment22 = assessment) |> 
+  group_by(NAME, value) |> 
+  mutate(across(where(is.double), ~ replace_na(.x, 0))) |> 
+  summarise(across(where(is.double), ~ sum(.x))) |> 
+  ungroup()
+
+prop_assess_tbl |> 
+  mutate(across(3:4, ~ formattable::currency(.x, digits = 0))) |>
+  kable(col.names = c("Neighborhood", "Measure", "2017 assessment", "2022 assessment", "Change")) |> 
+  kableExtra::kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed", "responsive")
+  ) |> 
+  kableExtra::collapse_rows(1, valign = "top")
+
+```
+
 
 # Takeaways
 
