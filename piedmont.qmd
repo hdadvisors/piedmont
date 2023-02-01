@@ -1717,28 +1717,27 @@ ggplot(clients_price_race, aes(x = value, y = reorder(race, value),
 
 ## Home equity
 
-This section explores methods for estimating the amount of home equity that clients have earned since the purchase of their home. Two different methods for projecting equity will be used: the first uses property assessment from the City of Charlottesville, while the second uses property sales records from MLS.
+This section explores methods for estimating the amount of home equity that clients have earned since the purchase of their home.
 
-```{r}
-# Two methods to try and test
+Home equity is defined as:
 
-# Option 1:
-# Find average percent change in assessment values from purchase date to current for all comparable homes in neighborhood
-# Apply percent change to original sales price for estimated home value
-# Calculate remaining mortgage balance using loan info
-# value - balance = equity
+$$E = V - B$$
 
-# Option 2:
-# Same as above but use MLS sales data
-# Will have much smaller sample size -- may only be possible at city level
-# Determine if any past clients have already sold home -- would provide most accurate estimate
-```
+* $E$ = Home equity
+* $V$ = Current market value of home
+* $B$ = Remaining loan balance
+
+The data provided by PHA allows us to accurately calculate a client's remaining loan balance. However, an accurate figure for a home's current value would require a very recent arms-length sale or appraisal. Since these are not available for all homes in the dataset, we will estimate the current value with alternative data sources.
+
+Two different methods for projecting equity will be used: the first uses property assessment from the City of Charlottesville, while the second uses property sales records from MLS.
 
 ### Estimating equity via assessments
 
-The steps for this method include:
+The steps below show the process for estimating home equity for a sample of clients in the City of Charlottesville who purchased their home in 2017, when DPL data is first available.
 
-**Step 1:** Select earliest recorded DPL clients who purchased a home in the City of Charlottesville. This gives us the longest ownership timeframe for accruing home equity.
+**Step 1: Select clients**
+
+Select the earliest recorded DPL clients who purchased a home in the City of Charlottesville in 2017. This gives us the longest ownership timeframe for accruing home equity.
 
 ```{r}
 #| label: equity-1
@@ -1761,7 +1760,9 @@ prop_2017 <- property_sf |>
 
 ```
 
-**Step 2:** Determine which neighborhoods the homes are in. The averages for these neighborhoods will be used as benchmarks.
+**Step 2: Assign neighborhoods**
+
+Determine which neighborhoods the homes are in. The averages for these neighborhoods will be used as benchmarks. Neighborhood boundaries are the [Planning Neighborhood Areas](https://opendata.charlottesville.org/datasets/charlottesville::planning-neighborhood-area/about) from the City of Charlottesville.
 
 ```{r}
 #| label: equity-2
@@ -1773,7 +1774,7 @@ cv_parcels <- read_rds("data/cv_parcels.rds")
 
 # Load in Charlottesville neighborhood boundaries
 
-cv_nhoods <- st_read("data/shp/Planning_Neighborhood_Area.shp") |> 
+cv_nhoods <- st_read("data/shp/Planning_Neighborhood_Area.shp", quiet = TRUE) |> 
     st_transform(4502)
 
 # Spatial join with neighborhoods and parcel records
@@ -1784,7 +1785,9 @@ prop_2017 <- prop_2017 |>
 
 ```
 
-**Step 3:** Calculate change in median assessed value from 2017 to 2022 for each neighborhood.
+**Step 3: Find change in neighborhood assessments**
+
+Calculate the change in median assessed value from 2017 to 2022 for each neighborhood. Only single-family residential parcels are included.
 
 ```{r}
 #| label: equity-3
@@ -1832,7 +1835,9 @@ cv_value_nhood <- cv_parcels_nhood |>
 
 ```
 
-**Step 4:** Calculate percent change in assessed value for client homes and respective neighborhoods.
+**Step 4: Compare change in client and neighborhood assessments**
+
+Calculate the percent change in assessed value for client homes and their respective neighborhoods.
 
 ```{r}
 #| label: equity-4
@@ -1877,6 +1882,13 @@ prop_assess <- prop_2017 |>
 
 ```
 
+Following the methods above leaves us with two homes within the City of Charlottesville that DPL clients purchased in 2017. These homes are located on the following blocks and neighborhoods.
+
+* 2300 block of North Berkshire Road (Fifeville)
+* 800 block of Orangedale Avenue (The Meadows)
+
+Exact addresses are omitted from this narrative for privacy.
+
 The chart below demonstrates how we can compare the change in assessed value for homes purchased by clients to the average change observed in their respective neighborhoods.
 
 ```{r}
@@ -1894,15 +1906,18 @@ ggplot(prop_assess, aes(x = TaxYear, y = pct_chg, color = value)) +
   add_zero_line("y") +
   labs(title = "Value of DPL client homes versus surrounding neighborhoods",
        subtitle = "Percent change in assessed value from 2017 to 2022",
-       caption = "**Notes:** Homes sold to clients in 2017. Neighborhood average derived from median value<br>of all single-family residential properties.")
+       caption = "**Notes:** Homes sold to clients in 2017. Neighborhood average derived from median value of all<br>single-family residential properties.")
 
 ```
 
-The plot on the left shows a client's home they purchased in the Fifeville neighborhood in 2017 increasing in total assessed value by almost 50 percent by 2022, compared to a neighborhood average increase of 38 percent.
+The plot on the left shows a client's home they purchased in Fifeville in 2017 increasing in total assessed value by almost 50 percent by 2022, compared to a neighborhood average increase of 38 percent.
 
 The plot on the right shows the same for a home purchased by a client in The Meadows. In this case, the assessed value of the client's home almost doubled (76 percent) in the first year following their closing, likely due to the city assessor making a major adjustment following the sale of this home. (It was assessed for \$104,500 in 2017, but sold for \$178,700.) Since 2018, the home's value has increased in close pace with its surrounding neighborhood.
 
 ```{r}
+#| label: tbl-assess
+#| code-summary: "View code"
+#| tbl-cap: "Change in assessed values for DPL client homes versus surrounding neighborhoods"
 
 prop_assess_tbl <- prop_assess |> 
   filter(TaxYear %in% c(2017, 2022)) |> 
@@ -1919,15 +1934,136 @@ prop_assess_tbl <- prop_assess |>
   ungroup()
 
 prop_assess_tbl |> 
-  mutate(across(3:4, ~ formattable::currency(.x, digits = 0))) |>
-  kable(col.names = c("Neighborhood", "Measure", "2017 assessment", "2022 assessment", "Change")) |> 
+  mutate(across(3:4, ~ formattable::currency(.x, digits = 0)),
+         pct_chg = formattable::percent(pct_chg, digits = 1)) |>
+  kable(col.names = c("Neighborhood", "Measure", "2017 assessment", "2022 assessment", "Change"),
+        align = "llccc",
+        escape = F) |> 
   kableExtra::kable_styling(
-    bootstrap_options = c("striped", "hover", "condensed", "responsive")
+   bootstrap_options = c("hover", "condensed", "responsive", "striped"),
+   font_size = 14
   ) |> 
   kableExtra::collapse_rows(1, valign = "top")
 
 ```
 
+**Step 5: Find estimated equity**
+
+Calculate the estimated equity for homeowners using average neighborhood assessment increases as the benchmark.
+
+Here, we apply the average percent increase by neighborhood to the each home's original sales price. This gives us an estimated present value from which to calculate home equity.
+
+The following assumptions are made:
+
+* Clients have a 30-year fixed rate mortgage with 360 total payments
+* Clients have made every mortgage payment from their closing date through the end of 2022
+* The monthly payment includes only principal and interest
+
+```{r}
+#| label: equity-5
+#| code-summary: "View code"
+
+# Extract the percent change in average assessed value by neighborhood
+
+nhood_pct <- prop_assess_tbl |> 
+  filter(value == "Neighborhood average") |> 
+  select(1, 5)
+
+# Run calculations to estimate equity
+
+prop_equity <- prop_2017 |> 
+  
+  # Drop geometry
+  
+  st_drop_geometry() |> 
+  
+  # Join neighborhood assessment change data
+  
+  left_join(nhood_pct, "NAME") |> 
+  
+  # Keep only necessary columns
+  
+  select(2, 3, 4, 6, 7, 10, 21) |>
+  
+  # Calculate monthly payment (principal and interest only)
+  
+  mutate(pmt =  mortgage_amount_dpl*((interest_rate_dpl/12)/(1-(1+(interest_rate_dpl/12))^(-360)))) |> 
+  
+  # Calculate number of months (payments) between closing and end of 2022
+  
+  mutate(months = (interval(close_date_dpl, as_date("2022-12-31"))) %/% months(1)) |> 
+  
+  # Calculate remaining loan balance
+  
+  mutate(balance = (pmt/(interest_rate_dpl/12)) * (1 - (1/(1+(interest_rate_dpl/12))^(360-months)))) |> 
+  
+  # Calculate estimated home value based on neighborhood assessment change
+  
+  mutate(est_val = sale_price_dpl * (1 + pct_chg)) |> 
+  
+  # Calculate home equity
+  
+  mutate(equity = est_val - balance)
+
+```
+
+The table below shows the inputs and results from the calculations above.
+
+```{r}
+#| label: tbl-equity
+#| code-summary: "View code"
+#| tbl-cap: "Inputs and results for home equity estimates"
+
+prop_equity_table <- prop_equity |> 
+  select(2, 1, 3, 4, 5, 7:12) |> 
+  mutate(property_street_address = case_when(
+    str_detect(property_street_address, "2302") ~ "North Berkshire Road",
+    TRUE ~ "Orangedale Avenue"
+  )) |> 
+  mutate(
+    close_date_dpl = as.character(close_date_dpl, "%B %d, %Y"),
+    interest_rate_dpl = percent(interest_rate_dpl, digits = 3),
+    pct_chg = percent(pct_chg, digits = 1),
+    across(c(3,4,7,9:11), ~ currency(.x, digits = 0)),
+    ) |> 
+  mutate(across(3:11, ~ as.character(.x))) |> 
+  pivot_longer(cols = 2:11, names_to = "name", values_to = "values") |> 
+  pivot_wider(names_from = property_street_address, values_from = 3) |> 
+  mutate(name = case_when(
+    name == "close_date_dpl" ~ "Close date",
+    name == "sale_price_dpl" ~ "Sales price",
+    name == "mortgage_amount_dpl" ~ "Principal",
+    name == "interest_rate_dpl" ~ "Interest rate",
+    name == "pct_chg" ~ "Change in neighborhood assessment",
+    name == "pmt" ~ "Monthly payment",
+    name == "months" ~ "Payments made",
+    name == "balance" ~ "Remaining balance",
+    name == "est_val" ~ "Estimated current home value",
+    name == "equity" ~ "Estimated equity"
+  ))
+  
+prop_equity_table |> 
+  kable(col.names = c("", "North Berkshire Rd", "Orangedale Ave"),
+        align = "lcc",
+        escape = F) |> 
+  kableExtra::kable_styling(
+   bootstrap_options = c("hover", "condensed", "responsive", "striped"),
+   font_size = 14
+  ) |> 
+  kableExtra::row_spec(10, bold = TRUE)
+
+```
+
+Based on these estimates, the homeowner on North Berkshire Road has gained \$105,526 in home equity through 2022, and the homeowner on Orangedale Ave has earned \$83,053.
+
+### Estimating equity via MLS records
+
+```
+# Same as above but use MLS sales data instead of assessments
+# Filter sales records to same bedrooms and bathrooms as client home
+# Will have much smaller sample size -- may only be possible at city level
+# Determine if any past clients have already sold home -- would provide most accurate estimate
+```
 
 # Takeaways
 
