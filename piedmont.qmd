@@ -1729,7 +1729,7 @@ $$E = V - B$$
 
 The data provided by PHA allows us to accurately calculate a client's remaining loan balance. However, an accurate figure for a home's current value would require a very recent arms-length sale or appraisal. Since these are not available for all homes in the dataset, we will estimate the current value with alternative data sources.
 
-Two different methods for projecting equity will be used: the first uses property assessment from the City of Charlottesville, while the second uses property sales records from MLS.
+Two different methods for projecting equity will be used: the first uses annual property assessment values, while the second uses property sales records also collected by the local assessor.
 
 ### Estimating equity via assessments
 
@@ -1740,7 +1740,7 @@ The steps below show the process for estimating home equity for a sample of clie
 Select the earliest recorded DPL clients who purchased a home in the City of Charlottesville in 2017. This gives us the longest ownership timeframe for accruing home equity.
 
 ```{r}
-#| label: equity-1
+#| label: equity-assess-1
 #| code-summary: "View code"
 
 prop_2017 <- property_sf |> 
@@ -1765,7 +1765,7 @@ prop_2017 <- property_sf |>
 Determine which neighborhoods the homes are in. The averages for these neighborhoods will be used as benchmarks. Neighborhood boundaries are the [Planning Neighborhood Areas](https://opendata.charlottesville.org/datasets/charlottesville::planning-neighborhood-area/about) from the City of Charlottesville.
 
 ```{r}
-#| label: equity-2
+#| label: equity-assess-2
 #| code-summary: "View code"
 
 # Load in Charlottesville residential parcels
@@ -1790,7 +1790,7 @@ prop_2017 <- prop_2017 |>
 Calculate the change in median assessed value from 2017 to 2022 for each neighborhood. Only single-family residential parcels are included.
 
 ```{r}
-#| label: equity-3
+#| label: equity-assess-3
 #| code-summary: "View code"
 
 # Spatial join all parcels to neighborhoods
@@ -1840,7 +1840,7 @@ cv_value_nhood <- cv_parcels_nhood |>
 Calculate the percent change in assessed value for client homes and their respective neighborhoods.
 
 ```{r}
-#| label: equity-4
+#| label: equity-assess-4
 #| code-summary: "View code"
 
 # Combine percent change in assessments for homes and neighborhoods
@@ -1892,7 +1892,7 @@ Exact addresses are omitted from this narrative for privacy.
 The chart below demonstrates how we can compare the change in assessed value for homes purchased by clients to the average change observed in their respective neighborhoods.
 
 ```{r}
-#| label: equity-plot
+#| label: equity-assess-plot
 #| code-summary: "View code"
 
 ggplot(prop_assess, aes(x = TaxYear, y = pct_chg, color = value)) +
@@ -1906,7 +1906,7 @@ ggplot(prop_assess, aes(x = TaxYear, y = pct_chg, color = value)) +
   add_zero_line("y") +
   labs(title = "Value of DPL client homes versus surrounding neighborhoods",
        subtitle = "Percent change in assessed value from 2017 to 2022",
-       caption = "**Notes:** Homes sold to clients in 2017. Neighborhood average derived from median value of all<br>single-family residential properties.")
+       caption = "**Notes:** Homes sold to clients in 2017. Neighborhood average derived from median value of all single-family residential properties.")
 
 ```
 
@@ -1960,7 +1960,7 @@ The following assumptions are made:
 * The monthly payment includes only principal and interest
 
 ```{r}
-#| label: equity-5
+#| label: equity-assess-5
 #| code-summary: "View code"
 
 # Extract the percent change in average assessed value by neighborhood
@@ -2010,15 +2010,15 @@ prop_equity <- prop_2017 |>
 The table below shows the inputs and results from the calculations above.
 
 ```{r}
-#| label: tbl-equity
+#| label: tbl-equity-assess
 #| code-summary: "View code"
-#| tbl-cap: "Inputs and results for home equity estimates"
+#| tbl-cap: "Inputs and results for home equity estimates using assessment data"
 
 prop_equity_table <- prop_equity |> 
   select(2, 1, 3, 4, 5, 7:12) |> 
   mutate(property_street_address = case_when(
-    str_detect(property_street_address, "2302") ~ "North Berkshire Road",
-    TRUE ~ "Orangedale Avenue"
+    str_detect(property_street_address, "2302") ~ "North Berkshire Rd",
+    TRUE ~ "Orangedale Ave"
   )) |> 
   mutate(
     close_date_dpl = as.character(close_date_dpl, "%B %d, %Y"),
@@ -2056,25 +2056,341 @@ prop_equity_table |>
 
 Based on these estimates, the homeowner on North Berkshire Road has gained \$105,526 in home equity through 2022, and the homeowner on Orangedale Ave has earned \$83,053.
 
-### Estimating equity via MLS records
+### Estimating equity via sales records
+
+The steps below show the process for estimating home equity with public real estate sales data. This process also uses the two client homes selected above.
+
+**Step 1: Create list of relevant home sales**
+
+Load in real estate sales records and join with parcel data, which includes fields on house attributes. Remove all sales with a zero value (which do not reflect a market transaction) and those before 2017. Convert to spatial object and join with Charlottesville neighborhood boundaries.
+
+```{r}
+#| label: equity-sales-1
+#| code-summary: "View code"
+
+# Load in real estate sales records from city
+
+cv_sales <- read_csv("data/raw/Real_Estate_(Sales).csv") |> 
+  
+  # Join records with spatial parcel data
+  
+  right_join(cv_parcels) |> 
+  
+  # Filter out all records that do not have a sales price
+  
+  filter(SaleAmount > 0) |> 
+  
+  # Clean up date column
+  
+  mutate(SaleDate = str_sub(SaleDate, 1, 10),
+         SaleDate = parse_date_time(SaleDate, "ymd")) |>
+  
+  # Filter only sales in 2017 and after
+  
+  filter(SaleDate >= "2017-01-01") |> 
+  
+  # Convert to spatial object using parcel geometry
+  
+  st_as_sf() |> 
+  
+  # Join to neighborhoods
+  
+  st_join(cv_nhoods)
 
 ```
-# Same as above but use MLS sales data instead of assessments
-# Filter sales records to same bedrooms and bathrooms as client home
-# Will have much smaller sample size -- may only be possible at city level
-# Determine if any past clients have already sold home -- would provide most accurate estimate
+
+**Step 2: Pull comps for client homes**
+
+Filter the sales records to make a list of comps for each of the two homes used in the prior section. Because of limited sales numbers over the last five years, we cannot filter to neighborhoods. Instead, these comps are based on sales of other homes that:
+
+- Have the same number of bedrooms and full bathrooms, and
+- Are within 100 square feet of total livable area.
+
+Using the code below, we are left with 144 comps for North Berkshire Road and 203 for Orangedale Avenue. Median sale values for each list are then summarized by year, followed by the cumulative percent change in those values from 2017 to 2022.
+
+```{r}
+#| label: equity-sales-2
+#| code-summary: "View code"
+
+# N Berkshire Rd
+# 2 bed, 1 bath, 975 sqft
+
+cv_sales_berkshire <- cv_sales |> 
+  st_drop_geometry() |> 
+  filter(Bedrooms == 2 & FullBathrooms == 1 &
+           SqFt >= 875 & SqFt <= 1075) |> 
+  mutate(SaleDate = year(SaleDate)) |> 
+  summarise(median = median(SaleAmount), .by = SaleDate) |> 
+  arrange(median) |> 
+  mutate(chg = median - first(median),
+         pct_chg = chg / first(median)) |> 
+  mutate(NAME = "The Meadows", .before = 1) |> 
+  mutate(home = "North Berkshire Rd", .after = 1)
+
+# Orangedale Ave
+# 3 bed, 1 bath, 1200 sqft
+
+cv_sales_orangedale <- cv_sales |> 
+  st_drop_geometry() |> 
+  filter(Bedrooms == 3 & FullBathrooms == 1 &
+           SqFt >= 1100 & SqFt <= 1300) |> 
+  mutate(SaleDate = year(SaleDate)) |> 
+  summarise(median = median(SaleAmount), .by = SaleDate) |> 
+  arrange(median) |> 
+  mutate(chg = median - first(median),
+         pct_chg = chg / first(median)) |> 
+  mutate(NAME = "Fifeville", .before = 1) |> 
+  mutate(home = "Orangedale Ave", .after = 1)
+
+# Combine two property comps
+
+cv_sales_comp <- bind_rows(cv_sales_berkshire, cv_sales_orangedale) |> 
+  mutate(pct_chg = case_when(
+    SaleDate == 2017 ~ NA,
+    TRUE ~ pct_chg
+  ))
+
 ```
+
+The plot below shows the annual median sales price calculated for each set of comps from 2017 to 2022, as well as the cumulative percent change. Prices for homes similar to the North Berkshire Road house have risen 57 percent, and 69 percent for those similar to the Orangedale Avenue home.
+
+```{r}
+#| label: equity-sales-plot
+#| code-summary: "View code"
+
+# Plot median and percent change in annual comps for each home
+
+ggplot(cv_sales_comp,
+       aes(SaleDate,
+           median,
+           fill = home,
+           label = label_percent(accuracy = 1)(pct_chg))) +
+  geom_col() +
+  geom_text(vjust = 2,
+            color = "white") +
+  facet_wrap(~home) +
+  scale_fill_hda() +
+  scale_color_hda() +
+  scale_x_continuous(breaks = c(2017:2022)) +
+  scale_y_continuous(labels = label_dollar()) +
+  theme_hda() +
+  add_zero_line("y") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  labs(
+    title = "Value of comparable citywide sales to client homes",
+    subtitle = "Annual median sales price and cumulative percent change from 2017 to 2022",
+    caption = "**Notes:**<br>North Berkshire Rd comps: 2 bed, 1 bath, 875-975 sqft.<br>Orangedale Ave comps: 3 bed, 1 bath, 1100-1300 sqft."
+  )
+
+```
+
+**Step 3: Find estimated equity**
+
+To determine the estimated equity for each of these homes, we use the same methods from the previous section. However, instead of applying the percent increase in neighborhood home values, here we use the average percent increase in sales prices for comparable homes across the whole city.
+
+```{r}
+#| label: equity-sales-3
+#| code-summary: "View code"
+
+# Join with property data
+
+prop_comp <- cv_sales_comp |> 
+  filter(SaleDate == 2022) |> 
+  left_join(prop_2017, by = "NAME") |> 
+  select(1, 2, 4, 5, 6, 8, 10:13)
+
+# Calculate equity
+
+comp_equity <- prop_comp |> 
+  mutate(pmt =  mortgage_amount_dpl*((interest_rate_dpl/12)/(1-(1+(interest_rate_dpl/12))^(-360)))) |> 
+  mutate(months = (interval(close_date_dpl, as_date("2022-12-31"))) %/% months(1)) |>
+  mutate(balance = (pmt/(interest_rate_dpl/12)) * (1 - (1/(1+(interest_rate_dpl/12))^(360-months)))) |>
+  mutate(est_val = sale_price_dpl * (1 + pct_chg)) |>
+  mutate(equity = est_val - balance)
+
+```
+
+The table below shows the inputs and results from the calculations above.
+
+```{r}
+#| label: tbl-equity-sales
+#| code-summary: "View code"
+#| tbl-cap: "Inputs and results for home equity estimates using home sales data"
+
+comp_equity_table <- comp_equity |> 
+  select(2, 6, 7, 9, 10, 5, 11:15) |> 
+  mutate(
+    close_date_dpl = as.character(close_date_dpl, "%B %d, %Y"),
+    interest_rate_dpl = percent(interest_rate_dpl, digits = 3),
+    pct_chg = percent(pct_chg, digits = 1),
+    across(c(3,4,7,9:11), ~ currency(.x, digits = 0)),
+    ) |> 
+  mutate(across(3:11, ~ as.character(.x))) |> 
+  pivot_longer(cols = 2:11, names_to = "name", values_to = "values") |> 
+  pivot_wider(names_from = home, values_from = 3) |> 
+  mutate(name = case_when(
+    name == "close_date_dpl" ~ "Close date",
+    name == "sale_price_dpl" ~ "Sales price",
+    name == "mortgage_amount_dpl" ~ "Principal",
+    name == "interest_rate_dpl" ~ "Interest rate",
+    name == "pct_chg" ~ "Change in neighborhood assessment",
+    name == "pmt" ~ "Monthly payment",
+    name == "months" ~ "Payments made",
+    name == "balance" ~ "Remaining balance",
+    name == "est_val" ~ "Estimated current home value",
+    name == "equity" ~ "Estimated equity"
+  ))
+
+comp_equity_table |> 
+  kable(col.names = c("", "North Berkshire Rd", "Orangedale Ave"),
+        align = "lcc",
+        escape = F) |> 
+  kableExtra::kable_styling(
+   bootstrap_options = c("hover", "condensed", "responsive", "striped"),
+   font_size = 14
+  ) |> 
+  kableExtra::row_spec(10, bold = TRUE)
+
+```
+
+Based on these estimates, the homeowner on North Berkshire Road has gained \$151,926 in home equity through 2022, and the homeowner on Orangedale Ave has earned \$121,931.
+
+### Comparisons
+
+These two approaches both show that the clients in these homes have likely earned a significant amount of home equity since their purchases in 2017. However, differences in source data and methodology produce estimates that do vary by large amounts, even if all values are major increases.
+
+```{r}
+#| label: comp-1
+#| code-summary: "View code"
+
+prop_equity_sum <- prop_equity |> 
+  select(6, "home" = 2, 7, 11, 12) |> 
+  mutate(method = "Assessments") |> 
+  mutate(home = case_when(
+    NAME == "The Meadows" ~ "North Berkshire Rd",
+    TRUE ~ "Orangedale Ave"
+  ))
+
+comp_equity_sum <- comp_equity |> 
+  select(1, 2,5, 14, 15) |> 
+  mutate(method = "Home sales")
+
+equity_sum <- bind_rows(prop_equity_sum, comp_equity_sum) |> 
+  pivot_longer(cols = 3:5, names_to = "type", values_to = "value")
+
+```
+
+The plot below shows the differences in the estimated percent increase of home value produced by each method (from 2017 to 2022). Using actual market transactions (home sales) leads to much higher estimates---almost double the results generated by the assessment data method.
+
+```{r}
+#| label: comp-2
+#| code-summary: "View code"
+
+equity_sum |> 
+  filter(type == "pct_chg") |> 
+  ggplot(aes(method, value, fill = method,
+             label = label_percent(accuracy = 0.1)(value))) +
+  geom_col() +
+  geom_text(vjust = 2,
+            color = "white") +
+  facet_wrap(~home) +
+  scale_fill_hda() +
+  theme_hda() +
+  add_zero_line("y") +
+  theme(axis.text.y = element_blank()) +
+  labs(
+    title = "Method comparison for estimated percent increase in home value",
+    subtitle = "Estimated percent change in home value from 2017 to 2022 by methodology"
+  )
+
+```
+
+As a result, the estimated current home values also vary by \$40,000 to \$50,000 depending on methodology.
+
+```{r}
+#| label: comp-3
+#| code-summary: "View code"
+
+equity_sum |> 
+  filter(type == "est_val") |> 
+  ggplot(aes(method, value, fill = method,
+             label = label_dollar()(value))) +
+  geom_col() +
+  geom_text(vjust = 2,
+            color = "white") +
+  facet_wrap(~home) +
+  scale_fill_hda() +
+  theme_hda() +
+  add_zero_line("y") +
+  theme(axis.text.y = element_blank()) +
+  labs(
+    title = "Method comparison for estimated current home value",
+    subtitle = "Estimated home value in 2022 by methodology"
+  )
+
+```
+
+The estimated home values above are used to then calculate the expected amount of home equity each homeowner has earned since their purchase. For the North Berkshire Road home, the estimated equity ranges from about \$105,000 to \$151,000. The latter is several thousand dollars more than the buyer's total principal.
+
+Equity estimates for the Orangedale Avenue home range from \$83,000 to \$122,000. The higher estimate is just about \$4,000 less than the buyer's original purchase price. So, while estimates do vary, both buyers can reasonably expect significant gains in home equity relative to their original purchase price.
+
+```{r}
+#| label: comp-4
+#| code-summary: "View code"
+
+equity_sum |> 
+  filter(type == "equity") |> 
+  ggplot(aes(method, value, fill = method,
+             label = label_dollar()(value))) +
+  geom_col() +
+  geom_text(vjust = 2,
+            color = "white") +
+  facet_wrap(~home) +
+  scale_fill_hda() +
+  theme_hda() +
+  add_zero_line("y") +
+  theme(axis.text.y = element_blank()) +
+  labs(
+    title = "Method comparison for estimated home equity",
+    subtitle = "Estimated home equity earned from 2017 to 2022 by methodology"
+  )
+
+```
+
+While many factors are at play, the major distinction between these methods is the ability of market transactions to show much stronger home value increases---and therefore home equity---compared to tax assessments. Sales data are more accurately showing the accelerating market in Charlottesville over the last five years, while the assessments lag behind.
 
 # Takeaways
 
-`Major (and other noteworthy) findings from analysis`
+PHA has been collecting enough client data over the last five years to generate a number of useful findings about its homebuyer programs. Despite these achievements, expanding data integrity efforts and a host of other next steps could help PHA develop a fuller spectrum of analysis.  Notable takeaways from this preliminary analysis are below.
 
-# Next steps
+Program data status:
 
-HDAdvisors will continue to work with PHA on the following next steps:
+- Program data is regularly collected for DPL and SPARC clients; however, data is inconsistent and incomplete in many places.
+- Despite several clients using both the DPL and SPARC programs, records for each are not wholly integrated and require manual joining to match client data.
 
-* Develop consistent data entry/collection procedures to reduce time needed for data cleaning/correction in future analysis.
-* Collect and analyze program application data for clients who did not receive assistance from DPL and/or SPARC. Assess, if possible, reasons for denial and compare with loan denial trends in HMDA data.
+Program findings:
 
-`Plenty more to add here`
+- The number of clients served by PHA significantly accelerated in 2020 when it began offering SPARC. Today, about two in three clients use SPARC only.
+- HOME funds from DHCD and Albemarle County HAP are by far the two most common down payment sources.
+- PHA awarded a total of \$1,242,190 in DPL assistance from July 2017 to September 2022. This amounted to roughly \$28,230 provided per client.
+- Black clients receive on average roughly \$10,000 less in down payment assistance than average, despite average Black home purchase prices totaling about \$20,000 more than those of white clients.
+- SPARC clients purchase higher-priced homes than DPL clients, but those who leverage both programs can reach prices at and above \$250,000.
 
+Client characteristics:
+
+- Although race and ethnicity data is only available for DPL records, overall client diversity is similar or greater than Charlottesville's existing demographics.
+- DPL clients are much more likely to earn more than most renters in Charlottesville, while still making significantly less than most homeowners.
+- DPL clients are more likely to move out of Charlottesville than move in when they purchase their new home.
+
+Home equity gains:
+
+- PHA's existing data allows for relatively robust estimates of home equity gains for a sample of clients.
+- Forecasting home equity using market sales prices results in much higher estimates than projecting values on annual real estate assessments.
+- Either method demonstrates *significant* (six-figure) home equity gains for the sample clients.
+
+# Recommendations
+
+- Standardize client data across programs into a single sheet and reconcile duplicates. The joined dataset created in Section 2.1 of this document is a good starting point, but other improvements should be explored.
+- Investigate the root causes for major gaps in data, such as missing race/ethnicity and address fields for SPARC clients.
+- Standardize values common data fields such as lenders, mortgage products, and DPL loan sources. These are discrete variables with known options, so entries should be consistent (i.e., avoid using both "502" and "502 Direct Loans").
+- Explore voluntary intake and exit prompts for clients. Questions should address knowledge gaps outside of fields that are required by funding sources to collect. For example, standardized recording of where they would prefer to buy a home can help compare aspirations to actual outcomes.
