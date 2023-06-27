@@ -1605,6 +1605,48 @@ ggplot(client_moves_sum, aes(x = destination_sum, fill = destination_sum)) +
 
 ```
 
+Client moves by race and ethnicity
+
+```{r}
+#| label: client-moves-race
+#| code-summary: "View code"
+
+library(tidytext)
+
+client_moves_race <- st_drop_geometry(clients_sf) |> 
+  left_join(st_drop_geometry(property_sf), "id_pha") |> 
+  select("race" = 'race.x', "Origin" = 'Locality.x', "Destination" = 'Locality.y') |> 
+  mutate(across(2:3, ~ str_remove_all(.x, " city"))) |> 
+  group_by(race, Destination) |> 
+  summarise(n = n()) |> 
+  mutate(race = fct_relevel(race, "White", "Black", "Asian"),
+         Destination = reorder_within(Destination, n, race))
+
+ggplot(client_moves_race, aes(x = n, y = Destination, fill = race)) +
+  facet_grid(rows = vars(fct_relevel(race, "White", "Black", "Asian")), scales = "free_y", space = "free_y", switch = "y") +
+  geom_col() +
+  scale_x_continuous(
+    breaks = seq(0, 10, 2),
+    labels = label_number(accuracy = 1),
+    expand = c(0.01, 0.05)
+    ) +
+  scale_y_reordered() +
+  scale_fill_hda() +
+  add_zero_line("x") +
+  theme_hda(flip_gridlines = TRUE) +
+  theme(
+    strip.text.y.left = element_text(angle = 0, face = "bold", vjust = 1, hjust = 0),
+    strip.placement = "outside"
+  ) +
+  labs(
+    title = "DPL client destination by race",
+    subtitle = "Data from July 2017 through September 2022"
+  )
+
+
+```
+
+
 ## Housing outcomes
 
 The median sales price for all clients was \$224,500, but those prices vary significantly by program.
