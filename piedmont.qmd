@@ -8,9 +8,9 @@ format:
     number-sections: true
     theme: flatly
     author: "Jonathan Knopf (jonathan@hdadvisors.net)"
-#  pdf:
-#    fig-pos: "H"
-#    mainfont: "Open Sans"
+  # pdf:
+  #   fig-pos: "H"
+  #   mainfont: "Open Sans"
 execute: 
   echo: true
   warning: false
@@ -57,10 +57,10 @@ today <- Sys.Date()
 
 ```
 
-::: {.callout-caution}
-## Please note
-This document is still under construction. It was last updated `r format(today, format = "%B %d, %Y")` at `r format(Sys.time(), "%I:%M %p")`.
-:::
+<!-- ::: {.callout-caution} -->
+<!-- ## Please note -->
+<!-- This document is still under construction. It was last updated `r format(today, format = "%B %d, %Y")` at `r format(Sys.time(), "%I:%M %p")`. -->
+<!-- ::: -->
 
 # About
 
@@ -665,7 +665,11 @@ The fields to collect from this data include:
 * Buyer gross annual income
 * Debt-to-income ratio
 
-`Add steps on cleaning/preparing this data`
+:::{.callout-caution}
+### Future work
+
+This data was not collected within the scope of the original project. Analysis with this data could be completed as a future update.
+:::
 
 ## Home values
 
@@ -812,12 +816,9 @@ write_rds(mls_geocode, "data/mls_geocode.rds")
 ```
 
 
-## Other data
+### Public sales records
 
-`May or may not eventually be used` 
-
-* Neighborhood boundaries from City of Charlottesville ([link](https://opendata.charlottesville.org/datasets/charlottesville::planning-neighborhood-area/about))
-* Real estate sales ([link](https://opendata.charlottesville.org/maps/real-estate-sales))
+The City of Charlottesville also maintains a [public record of real estate transactions](https://opendata.charlottesville.org/maps/real-estate-sales) on their open data portal. This data is accessed and used in the @sec-home-equity section.
 
 # Analysis
 
@@ -1605,7 +1606,7 @@ ggplot(client_moves_sum, aes(x = destination_sum, fill = destination_sum)) +
 
 ```
 
-Client moves by race and ethnicity
+Most white clients purchased homes in Albemarle (10), followed by Charlottesville (5). Among the 15 Black clients, 5 bought in Albemarle, 4 in Fluvanna, 2 each in Louisa and Charlottesville, and 1 each in Suffolk and Prince William.
 
 ```{r}
 #| label: client-moves-race
@@ -1757,7 +1758,7 @@ ggplot(clients_price_race, aes(x = value, y = reorder(race, value),
 # Client loan products compared to region (and neighborhood, if possible)
 ```
 
-## Home equity
+## Home equity {#sec-home-equity}
 
 This section explores methods for estimating the amount of home equity that clients have earned since the purchase of their home.
 
@@ -2063,7 +2064,7 @@ prop_equity_table <- prop_equity |>
     TRUE ~ "Orangedale Ave"
   )) |> 
   mutate(
-    close_date_dpl = as.character(close_date_dpl, "%B %d, %Y"),
+    close_date_dpl = as.character(close_date_dpl),
     interest_rate_dpl = percent(interest_rate_dpl, digits = 3),
     pct_chg = percent(pct_chg, digits = 1),
     across(c(3,4,7,9:11), ~ currency(.x, digits = 0)),
@@ -2262,7 +2263,7 @@ The table below shows the inputs and results from the calculations above.
 comp_equity_table <- comp_equity |> 
   select(2, 6, 7, 9, 10, 5, 11:15) |> 
   mutate(
-    close_date_dpl = as.character(close_date_dpl, "%B %d, %Y"),
+    close_date_dpl = as.character(close_date_dpl),
     interest_rate_dpl = percent(interest_rate_dpl, digits = 3),
     pct_chg = percent(pct_chg, digits = 1),
     across(c(3,4,7,9:11), ~ currency(.x, digits = 0)),
